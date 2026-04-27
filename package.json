@@ -1,0 +1,13 @@
+{
+  "name": "artistic-creation-environment",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "wp-scripts build && npm run build:effects",
+    "start": "wp-scripts start",
+    "build:effects": "mkdir -p build && cp src/liquid-splash.html build/liquid-splash.html && cp src/fluid-simulation.js build/fluid-simulation.js && cp src/frontend.js build/frontend.js && cp src/LDR_LLL1_0.png build/LDR_LLL1_0.png"
+  },
+  "devDependencies": {
+    "@wordpress/scripts": "^30.11.0"
+  }
+}
