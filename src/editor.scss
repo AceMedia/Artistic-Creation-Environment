@@ -1,5 +1,7 @@
 .wp-block-artistic-creation-environment-creative {
 	background: transparent !important;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
 	isolation: isolate;
 	min-height: 320px;
 	overflow: hidden;
@@ -13,11 +15,65 @@
 	z-index: 1;
 }
 
+.wp-block-artistic-creation-environment-creative[data-artistic-creative-effect='ascii-world']
+	> .artistic-creative__layer,
+.wp-block-artistic-creation-environment-creative
+	[data-artistic-creative-effect='ascii-world']
+	> .artistic-creative__layer {
+	background-color: transparent;
+}
+
 .artistic-creative__canvas {
 	display: block;
 	height: 100%;
 	pointer-events: none;
 	width: 100%;
+}
+
+.artistic-creative__ascii {
+	color: #7dd3fc;
+	display: grid;
+	font-family:
+		ui-monospace,
+		SFMono-Regular,
+		Menlo,
+		Monaco,
+		Consolas,
+		'Liberation Mono',
+		monospace;
+	font-size: 11px;
+	inset: 0;
+	place-content: center;
+	letter-spacing: 0.03em;
+	line-height: 0.84;
+	margin: 0;
+	overflow: hidden;
+	pointer-events: none;
+	position: absolute;
+	text-align: center;
+	user-select: none;
+	white-space: pre;
+	width: 100%;
+	z-index: 1;
+}
+
+.artistic-creative__media-picker {
+	display: grid;
+	gap: 10px;
+}
+
+.artistic-creative__media-preview {
+	border: 1px solid rgba(148, 163, 184, 0.35);
+	border-radius: 10px;
+	display: block;
+	height: auto;
+	max-width: 100%;
+}
+
+.artistic-creative__media-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
 }
 
 .artistic-creative__placeholder {
@@ -39,10 +95,46 @@
 }
 
 .artistic-creative__inner-container {
+	align-self: stretch;
 	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	justify-content: var(--ace-vertical-justify, flex-start);
+	justify-self: stretch;
+	min-height: 100%;
 	position: relative;
 	width: 100%;
 	z-index: 3;
+}
+
+.artistic-creative__interactive-targets > *,
+.artistic-creative__interactive-target {
+	transform:
+		translate3d(
+			var(--ace-child-offset-x, 0px),
+			var(--ace-child-offset-y, 0px),
+			0
+		)
+		rotate(var(--ace-child-rotate, 0deg))
+		scale(var(--ace-child-scale, 1));
+	transform-origin: center center;
+	will-change: transform;
+}
+
+.artistic-creative__inner-container > .block-editor-inner-blocks {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	justify-content: inherit;
+	min-height: 100%;
+}
+
+.artistic-creative__inner-container
+	> .block-editor-inner-blocks
+	> .block-editor-block-list__layout,
+.artistic-creative__inner-container > .block-editor-block-list__layout {
+	min-height: 100%;
+	width: 100%;
 }
 
 .artistic-creative--content-effects
@@ -57,38 +149,70 @@
 		.wp-block-code,
 		.wp-block-button__link
 	) {
-	-webkit-backdrop-filter:
-		blur(var(--ace-content-backdrop-blur, 0px))
-		saturate(var(--ace-content-saturate, 100%));
-	backdrop-filter:
-		blur(var(--ace-content-backdrop-blur, 0px))
-		saturate(var(--ace-content-saturate, 100%));
-	background:
+	background: transparent;
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
+	color:
 		color-mix(
 			in srgb,
+			currentColor
+				calc((1 - var(--ace-content-surface-opacity, 0)) * 100%),
 			var(--ace-content-surface-color, #fff)
-				calc(var(--ace-content-surface-opacity, 0) * 100%),
-			transparent
+				calc(var(--ace-content-surface-opacity, 0) * 100%)
 		);
-	border:
-		1px solid
-		color-mix(
-			in srgb,
-			var(--ace-content-surface-color, #fff)
-				calc(var(--ace-content-border-opacity, 0) * 100%),
-			transparent
-		);
-	border-radius: var(--ace-content-radius, 18px);
-	box-shadow: var(--ace-content-shadow, none);
-	filter: invert(var(--ace-content-invert, 0));
+	filter:
+		invert(var(--ace-content-invert, 0))
+		saturate(var(--ace-content-saturate, 100%));
 	mix-blend-mode: var(--ace-content-blend-mode, normal);
-	padding: var(--ace-content-padding, 0);
+	padding: 0;
+}
+
+.artistic-creative--content-effects
+	.artistic-creative__inner-container
+	:is(
+		.wp-block-heading,
+		.wp-block-paragraph,
+		.wp-block-list,
+		.wp-block-quote,
+		.wp-block-pullquote,
+		.wp-block-preformatted,
+		.wp-block-code,
+		.wp-block-button__link
+	)
+	:is(
+		strong,
+		em,
+		mark,
+		a,
+		span,
+		small,
+		sub,
+		sup,
+		code
+	) {
+	color: inherit;
+	mix-blend-mode: inherit;
+	text-shadow: inherit;
 }
 
 .artistic-creative--content-effects
 	.artistic-creative__inner-container
 	:is(.wp-block-heading, .wp-block-paragraph, .wp-block-quote, .wp-block-pullquote) {
-	text-shadow: var(--ace-content-shadow, none);
+	text-shadow:
+		var(--ace-content-shadow, none),
+		0 0
+		calc(
+			8px +
+				(var(--ace-content-border-opacity, 0) * 24px) +
+				(var(--ace-content-backdrop-blur, 0px) * 0.65)
+		)
+		color-mix(
+			in srgb,
+			var(--ace-content-surface-color, #fff)
+				calc((0.2 + var(--ace-content-border-opacity, 0)) * 100%),
+			transparent
+		);
 }
 
 .artistic-creative--content-effects
@@ -97,14 +221,54 @@
 	display: inline-block;
 }
 
-.wp-block-artistic-creation-environment-creative.block-library-cover__resize-container {
+.artistic-creative__resize-container {
+	display: grid !important;
+	height: 100% !important;
+	grid-template-columns: minmax(0, 1fr);
 	max-width: 100%;
+	min-height: 100%;
+	width: 100% !important;
 }
 
-.wp-block-artistic-creation-environment-creative.block-library-cover__resize-container
-	.components-resizable-box__handle-bottom {
+.artistic-creative__resize-container .components-resizable-box__handle-bottom {
+	align-items: center;
+	background: rgba(15, 23, 42, 0.88);
+	border: 1px solid rgba(148, 163, 184, 0.55);
+	border-radius: 999px;
 	bottom: -8px;
+	box-shadow: 0 8px 18px rgba(2, 6, 23, 0.28);
+	cursor: row-resize;
+	display: flex;
+	height: 16px;
+	justify-content: center;
+	left: calc(50% - 44px);
+	pointer-events: auto;
+	touch-action: none;
+	width: 88px;
 	z-index: 6;
+}
+
+.artistic-creative__resize-container
+	.components-resizable-box__handle-bottom::before {
+	background:
+		repeating-linear-gradient(
+			90deg,
+			rgba(226, 232, 240, 0.9) 0 6px,
+			transparent 6px 10px
+		);
+	border-radius: 999px;
+	content: '';
+	display: block;
+	height: 2px;
+	pointer-events: none;
+	width: 34px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.artistic-creative__interactive-targets > *,
+	.artistic-creative__interactive-target {
+		transform: none;
+	}
 }
 
 .artistic-creative__layer--editor {

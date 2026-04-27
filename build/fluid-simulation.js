@@ -114,6 +114,7 @@ var autoplayPulseAccumulator = 0.0;
 var autoplayBloomBoost = 0.0;
 var autoplayFocus = createAutoplayFocus();
 var growingSplatBursts = [];
+var lastClickHue = Math.random();
 var webcamState = {
     supported: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
     requested: false,
@@ -190,11 +191,16 @@ function applyBackdropColor (colorValue, legacyStyle) {
 }
 
 function amplifyColor (color, multiplier) {
-    return preserveColorContrast(softLimitColor({
+    return keepVividFluidColor({
         r: color.r * multiplier,
         g: color.g * multiplier,
         b: color.b * multiplier
-    }, 0.92), 0.28, 0.92);
+    }, {
+        maxChannel: 0.84,
+        maxAverage: 0.56,
+        minChroma: 0.2,
+        allowMonochrome: !!config.AURA_MODE
+    });
 }
 
 function softLimitColor (color, maxChannel) {
@@ -220,6 +226,63 @@ function preserveColorContrast (color, amount, maxChannel) {
     }, maxChannel);
 }
 
+function normalizeAverageLuminance (color, minAverage, maxAverage, maxChannel) {
+    var average = (color.r + color.g + color.b) / 3;
+    if (average > maxAverage && average > 0.0001) {
+        var dimScale = maxAverage / average;
+        color = {
+            r: color.r * dimScale,
+            g: color.g * dimScale,
+            b: color.b * dimScale
+        };
+    } else if (average < minAverage && average > 0.0001) {
+        var liftScale = minAverage / average;
+        color = softLimitColor({
+            r: color.r * liftScale,
+            g: color.g * liftScale,
+            b: color.b * liftScale
+        }, maxChannel);
+    }
+
+    return color;
+}
+
+function keepVividFluidColor (color, options) {
+    var settings = options || {};
+    var maxChannel = settings.maxChannel === undefined ? 0.74 : settings.maxChannel;
+    var minAverage = settings.minAverage === undefined ? 0.12 : settings.minAverage;
+    var maxAverage = settings.maxAverage === undefined ? 0.52 : settings.maxAverage;
+    var minChroma = settings.minChroma === undefined ? 0.18 : settings.minChroma;
+    var allowMonochrome = !!settings.allowMonochrome;
+    var fallbackColor = settings.fallbackColor || null;
+
+    var vivid = softLimitColor(color, maxChannel);
+    vivid = normalizeAverageLuminance(vivid, minAverage, maxAverage, maxChannel);
+
+    if (!allowMonochrome) {
+        var chroma = getColorChroma(vivid);
+        if (chroma < minChroma) {
+            vivid = preserveColorContrast(
+                vivid,
+                0.34 + (((minChroma - chroma) / Math.max(minChroma, 0.0001)) * 0.66),
+                maxChannel
+            );
+            chroma = getColorChroma(vivid);
+        }
+
+        if (fallbackColor && chroma < (minChroma * 0.6)) {
+            vivid = preserveColorContrast(
+                mixColors(vivid, fallbackColor, 0.22 + (((minChroma - chroma) / Math.max(minChroma, 0.0001)) * 0.18)),
+                0.22,
+                maxChannel
+            );
+        }
+    }
+
+    vivid = normalizeAverageLuminance(vivid, minAverage, maxAverage, maxChannel);
+    return softLimitColor(vivid, maxChannel);
+}
+
 function mixColors (from, to, amount) {
     var blend = clamp(amount, 0, 1);
     return {
@@ -227,6 +290,57 @@ function mixColors (from, to, amount) {
         g: from.g + ((to.g - from.g) * blend),
         b: from.b + ((to.b - from.b) * blend)
     };
+}
+
+function scaleColor (color, multiplier) {
+    return {
+        r: color.r * multiplier,
+        g: color.g * multiplier,
+        b: color.b * multiplier
+    };
+}
+
+function conditionInjectedFluidColor (x, y, color, options) {
+    var settings = options || {};
+    var sampledColor = sampleFluidColorAt(x, y);
+    var sampledEnergy = getColorEnergy(sampledColor);
+    var sampledChroma = getColorChroma(sampledColor);
+    var hotspot = clamp((sampledEnergy - 0.08) / 0.42, 0, 1);
+    var neutralRisk = clamp(((sampledEnergy - sampledChroma) - 0.06) / 0.34, 0, 1);
+    var whiteRisk = hotspot * clamp((0.16 - sampledChroma) / 0.16, 0, 1);
+    var fallbackColor = settings.fallbackColor || color;
+    var conditioned = color;
+
+    if (whiteRisk > 0.001) {
+        conditioned = preserveColorContrast(
+            mixColors(conditioned, fallbackColor, 0.08 + (whiteRisk * 0.18)),
+            0.26 + (whiteRisk * 0.5),
+            Math.max(0.42, (settings.maxChannel === undefined ? 0.72 : settings.maxChannel) * 0.9)
+        );
+    }
+
+    conditioned = keepVividFluidColor(conditioned, {
+        maxChannel: (settings.maxChannel === undefined ? 0.72 : settings.maxChannel) * (1 - (hotspot * 0.16) - (whiteRisk * 0.12)),
+        maxAverage: (settings.maxAverage === undefined ? 0.48 : settings.maxAverage) * (1 - (hotspot * 0.3) - (whiteRisk * 0.22)),
+        minAverage: settings.minAverage === undefined ? 0.09 : settings.minAverage,
+        minChroma: (settings.minChroma === undefined ? 0.2 : settings.minChroma) + (neutralRisk * 0.08) + (whiteRisk * 0.14),
+        fallbackColor: fallbackColor,
+        allowMonochrome: !!settings.allowMonochrome
+    });
+
+    conditioned = scaleColor(
+        conditioned,
+        1 - (hotspot * 0.14) - (neutralRisk * 0.16) - (whiteRisk * 0.26)
+    );
+
+    return keepVividFluidColor(conditioned, {
+        maxChannel: Math.max(0.38, (settings.maxChannel === undefined ? 0.72 : settings.maxChannel) * (1 - (whiteRisk * 0.16))),
+        maxAverage: Math.max(0.16, (settings.maxAverage === undefined ? 0.48 : settings.maxAverage) * (1 - (hotspot * 0.24) - (whiteRisk * 0.18))),
+        minAverage: settings.minAverage === undefined ? 0.08 : settings.minAverage,
+        minChroma: (settings.minChroma === undefined ? 0.2 : settings.minChroma) + (whiteRisk * 0.1),
+        fallbackColor: fallbackColor,
+        allowMonochrome: !!settings.allowMonochrome
+    });
 }
 
 function rotateVector (x, y, angle) {
@@ -892,7 +1006,7 @@ function applyAceConfig (nextConfig) {
     config.SUNRAYS_WEIGHT = clamp(toNumber(nextConfig.sunraysWeight, config.SUNRAYS_WEIGHT), 0.3, 1);
     config.AUTOPLAY = toBool(nextConfig.autoplay, config.AUTOPLAY);
     config.AUTOPLAY_INTENSITY = clamp(toNumber(nextConfig.autoplayIntensity, config.AUTOPLAY_INTENSITY), 0.2, 2);
-    config.AUTOPLAY_EASING = clamp(toNumber(nextConfig.autoplayEasing, config.AUTOPLAY_EASING), 0.5, 2.5);
+    config.AUTOPLAY_EASING = clamp(toNumber(nextConfig.autoplayEasing, config.AUTOPLAY_EASING), 0.5, 5);
     config.HOVER = toBool(nextConfig.hover, config.HOVER);
     config.TOUCH = toBool(nextConfig.touch, config.TOUCH);
     config.TILT = toBool(nextConfig.tilt, config.TILT);
@@ -1650,6 +1764,10 @@ function updateColors (dt) {
 function enqueueGrowingSplatBurst (x, y, dx, dy, color, options) {
     var settings = options || {};
     var radiusMultiplier = settings.radiusMultiplier === undefined ? 1 : settings.radiusMultiplier;
+    var speed = Math.sqrt((dx * dx) + (dy * dy));
+    var direction = speed > 0.0001
+        ? { x: dx / speed, y: dy / speed }
+        : rotateVector(1, 0, Math.random() * Math.PI * 2);
 
     growingSplatBursts.push({
         x: x,
@@ -1665,6 +1783,10 @@ function enqueueGrowingSplatBurst (x, y, dx, dy, color, options) {
         radiusEnd: radiusMultiplier * (settings.radiusEndMultiplier === undefined ? 1 : settings.radiusEndMultiplier),
         velocityStart: settings.velocityStart === undefined ? 0.42 : settings.velocityStart,
         velocityEnd: settings.velocityEnd === undefined ? 1.08 : settings.velocityEnd,
+        driftDistance: toNumber(settings.driftDistance, 0),
+        driftJitter: toNumber(settings.driftJitter, 0),
+        directionX: direction.x,
+        directionY: direction.y,
         steps: Math.max(2, Math.round(toNumber(settings.steps, 4))),
         duration: clamp(toNumber(settings.duration, 0.16), 0.05, 0.42),
         elapsed: toNumber(settings.delay, 0) * -1,
@@ -1688,7 +1810,10 @@ function updateGrowingSplatBursts (dt) {
             var easedStep = stepProgress * stepProgress * (3.0 - (2.0 * stepProgress));
             var velocityScale = burst.velocityStart + ((burst.velocityEnd - burst.velocityStart) * easedStep);
             var radiusMultiplier = burst.radiusStart + ((burst.radiusEnd - burst.radiusStart) * easedStep);
-            emitCreativeSplat(burst.x, burst.y, burst.dx * velocityScale, burst.dy * velocityScale, burst.color, {
+            var driftDistance = burst.driftDistance * easedStep;
+            var driftX = (burst.directionX * driftDistance) + ((Math.random() - 0.5) * burst.driftJitter * easedStep);
+            var driftY = (burst.directionY * driftDistance) + ((Math.random() - 0.5) * burst.driftJitter * easedStep);
+            emitCreativeSplat(clamp(burst.x + driftX, 0.02, 0.98), clamp(burst.y + driftY, 0.02, 0.98), burst.dx * velocityScale, burst.dy * velocityScale, burst.color, {
                 radiusMultiplier: radiusMultiplier,
                 injectDye: burst.injectDye,
                 particleShape: burst.particleShape,
@@ -1730,6 +1855,7 @@ function getAutoplayAnchor (progress) {
 
 function emitAutoplaySplat (phase, isBurst) {
     var intensity = clamp(config.AUTOPLAY_INTENSITY, 0.2, 2);
+    var easingStrength = clamp((config.AUTOPLAY_EASING - 0.5) / 4.5, 0, 1);
     var spiralPhase = isBurst ? clamp(0.68 + (phase * 0.24), 0, 1) : phase;
     var anchor = getAutoplayAnchor(spiralPhase);
     var orbitAngle = autoplayFocus.orbitPhase + (spiralPhase * autoplayFocus.orbitTurns * Math.PI * 2);
@@ -1738,7 +1864,7 @@ function emitAutoplaySplat (phase, isBurst) {
     var spiralRadius = (isBurst ? 0.014 + (phase * 0.032) : 0.005 + (spiralPhase * 0.05)) * (0.88 + (intensity * 0.16));
     var laneX = clamp(anchor.x + (Math.cos(spiralAngle) * spiralRadius), 0.03, 0.97);
     var laneY = clamp(anchor.y + (Math.sin(spiralAngle) * spiralRadius), 0.03, 0.97);
-    var radiusMultiplier = (isBurst ? 0.64 : 0.18 + (phase * 0.66)) * (0.96 + (intensity * 0.08));
+    var radiusMultiplier = (isBurst ? 0.46 + (phase * 0.1) : 0.1 + (phase * 0.46)) * (0.9 + (intensity * 0.07));
     var forceMultiplier = (isBurst ? 0.026 : 0.006 + (phase * phase * 0.017)) * (0.88 + (intensity * 0.12));
     var colorMultiplier = (isBurst ? 1.16 : 0.66 + (phase * 0.68)) * (0.96 + (intensity * 0.08));
     var tangentX = -Math.sin(orbitAngle) * autoplayFocus.swirl;
@@ -1762,12 +1888,12 @@ function emitAutoplaySplat (phase, isBurst) {
 
     enqueueGrowingSplatBurst(rushStartX, rushStartY, dx, dy, color, {
         radiusMultiplier: radiusMultiplier,
-        radiusStartMultiplier: isBurst ? 0.08 : 0.12,
-        radiusEndMultiplier: 1.08,
-        velocityStart: isBurst ? 0.7 : 0.56,
-        velocityEnd: isBurst ? 1.34 : 1.18,
-        duration: isBurst ? 0.16 : 0.19,
-        steps: isBurst ? 4 : 3,
+        radiusStartMultiplier: isBurst ? (0.03 + (easingStrength * 0.02)) : (0.045 + (easingStrength * 0.025)),
+        radiusEndMultiplier: isBurst ? (0.88 + (easingStrength * 0.18)) : (0.78 + (easingStrength * 0.14)),
+        velocityStart: isBurst ? (0.42 - (easingStrength * 0.08)) : (0.34 - (easingStrength * 0.08)),
+        velocityEnd: isBurst ? (1.12 - (easingStrength * 0.08)) : (0.96 - (easingStrength * 0.08)),
+        duration: (isBurst ? 0.24 : 0.28) + (easingStrength * (isBurst ? 0.32 : 0.42)),
+        steps: isBurst ? (4 + Math.round(easingStrength * 2)) : (4 + Math.round(easingStrength * 3)),
         particleSpread: config.PARTICLE_SPREAD + (isBurst ? 0.08 : 0.02),
         flowJitter: Math.max(0.04, config.FLOW_JITTER * 0.55)
     });
@@ -1782,7 +1908,8 @@ function updateAutoplay (dt) {
 
     var audioAutoplayBoost = (config.AUDIO_INPUT || 'off') !== 'off' ? audioState.autoplayBoost : 0;
     autoplayTimer += dt;
-    var interval = clamp(1.35 - (config.AUTOPLAY_INTENSITY * 0.35) - (audioAutoplayBoost * 0.22), 0.72, 1.45);
+    var easingIntervalBoost = clamp((config.AUTOPLAY_EASING - 0.5) / 4.5, 0, 1);
+    var interval = clamp((1.35 + (easingIntervalBoost * 1.25)) - (config.AUTOPLAY_INTENSITY * 0.3) - (audioAutoplayBoost * 0.18), 0.72, 2.6);
     var progress = clamp(autoplayTimer / interval, 0, 1);
     var eased = Math.pow(progress, config.AUTOPLAY_EASING);
     var bloomPhase = eased * eased * (3.0 - (2.0 * eased));
@@ -2043,17 +2170,23 @@ function splatPointer (pointer) {
         var spacing = clamp(0.0033 - (easedSpeed * 0.00205), 0.00125, 0.0033);
         if (pointer.hoverCarry < spacing) { return; }
 
-        var hoverColorBlend = (0.014 + (easedSpeed * 0.052)) * (sampledEnergy > 0.14 ? 0.72 : 1.0);
+        var hoverColorBlend = (0.008 + (easedSpeed * 0.022)) * (sampledEnergy > 0.1 ? 0.42 : 0.76);
         var hoverColorContrast = 0.1 + (gentlePhase * 0.08) + ((0.1 - Math.min(sampledChroma, 0.1)) * 0.2);
-        var hoverColorMaxChannel = 0.64 + (easedSpeed * 0.07);
+        var hoverColorMaxChannel = 0.5 + (easedSpeed * 0.03);
         var hoverBaseColor = fluidSample.color
             ? mixColors(fluidSample.color, pointer.color, 0.6 + (easedSpeed * 0.12))
             : pointer.color;
-        var hoverColor = preserveColorContrast(
+        var hoverInjectDye = sampledEnergy < 0.045 && sampledChroma < 0.09;
+        var hoverColor = keepVividFluidColor(preserveColorContrast(
             mixColors(hoverBaseColor, generateColor(), hoverColorBlend),
             hoverColorContrast,
             hoverColorMaxChannel
-        );
+        ), {
+            maxChannel: hoverColorMaxChannel,
+            maxAverage: 0.44 + (easedSpeed * 0.04),
+            minChroma: 0.2,
+            fallbackColor: pointer.color
+        });
         var hoverForce = 0.016 + (easedSpeed * 0.07);
         var hoverRadius = 0.072 + (easedSpeed * 0.095);
         var segmentX = pointer.texcoordX - pointer.prevTexcoordX;
@@ -2076,7 +2209,7 @@ function splatPointer (pointer) {
             var y = pointer.prevTexcoordY + (segmentY * t);
             emitCreativeSplat(clamp(x, 0.01, 0.99), clamp(y, 0.01, 0.99), dx, dy, splatColor, {
                 radiusMultiplier: hoverRadius,
-                injectDye: true,
+                injectDye: hoverInjectDye,
                 particleSpread: config.PARTICLE_SPREAD + (easedSpeed * 0.08),
                 flowJitter: config.FLOW_JITTER + (easedSpeed * 0.04)
             });
@@ -2237,20 +2370,63 @@ function emitCreativeSplat (x, y, dx, dy, color, options) {
 
 function multipleSplats (amount, options) {
     var settings = options || {};
-    var colorMultiplier = settings.colorMultiplier === undefined ? 10.0 : settings.colorMultiplier;
-    var forceMultiplier = settings.forceMultiplier === undefined ? 1 : settings.forceMultiplier;
-    var spread = settings.spread === undefined ? 0.5 : settings.spread;
-    var boostMultiplier = settings.boostMultiplier === undefined ? 1 : settings.boostMultiplier;
+    var spread = settings.spread === undefined ? 1 : settings.spread;
+    var padding = clamp(0.08 * spread, 0.04, 0.18);
 
     for (var i = 0; i < amount; i++) {
-        var color = amplifyColor(generateColor(), colorMultiplier * config.COLOR_BOOST * boostMultiplier);
-        var x = Math.random();
-        var y = Math.random();
-        var dx = 1000 * forceMultiplier * spread * (Math.random() - 0.5);
-        var dy = 1000 * forceMultiplier * spread * (Math.random() - 0.5);
-        emitCreativeSplat(x, y, dx, dy, color, {
-            particleSpread: config.PARTICLE_SPREAD
+        var x = padding + (Math.random() * (1 - (padding * 2)));
+        var y = padding + (Math.random() * (1 - (padding * 2)));
+        var baseColor = keepVividFluidColor(generateColor(), {
+            maxChannel: 0.3,
+            maxAverage: 0.16,
+            minAverage: 0.06,
+            minChroma: 0.4
         });
+        var baseHue = wrap(lastClickHue + 0.38 + (Math.random() * 0.22), 0, 1);
+        var baseAngle = Math.random() * Math.PI * 2;
+        lastClickHue = baseHue;
+
+        for (var triIndex = 0; triIndex < 3; triIndex++) {
+            var triAngle = baseAngle + (triIndex * ((Math.PI * 2) / 3));
+            var hue = wrap(baseHue + (triIndex / 3) + ((Math.random() - 0.5) * 0.04), 0, 1);
+            var hueColor = HSVtoRGB(hue, 0.94 + (Math.random() * 0.06), 0.62 + (Math.random() * 0.14));
+            var triColor = keepVividFluidColor(scaleColor({
+                r: hueColor.r,
+                g: hueColor.g,
+                b: hueColor.b
+            }, 0.12 * config.COLOR_BOOST), {
+                maxChannel: 0.32,
+                maxAverage: 0.15,
+                minAverage: 0.06,
+                minChroma: 0.44,
+                fallbackColor: baseColor
+            });
+            var travelForce = (220 + (config.SPLAT_FORCE * 0.03)) * (0.78 + (Math.random() * 0.56));
+
+            enqueueGrowingSplatBurst(
+                clamp(x, 0.02, 0.98),
+                clamp(y, 0.02, 0.98),
+                Math.cos(triAngle) * travelForce,
+                Math.sin(triAngle) * travelForce,
+                triColor,
+                {
+                    radiusMultiplier: 0.18 + (Math.random() * 0.12),
+                    radiusStartMultiplier: 0.015 + (Math.random() * 0.015),
+                    radiusEndMultiplier: 0.6 + (Math.random() * 0.18),
+                    velocityStart: 0.18 + (Math.random() * 0.12),
+                    velocityEnd: 0.92 + (Math.random() * 0.22),
+                    driftDistance: 0.06 + (Math.random() * 0.08),
+                    driftJitter: 0.012 + (Math.random() * 0.016),
+                    duration: 0.42 + (Math.random() * 0.26),
+                    steps: 8 + Math.round(Math.random() * 3),
+                    delay: i * 0.012 + (triIndex * 0.018) + (Math.random() * 0.05),
+                    injectDye: true,
+                    particleShape: 'soft',
+                    particleSpread: Math.max(0.05, config.PARTICLE_SPREAD * 0.18),
+                    flowJitter: Math.max(0.02, config.FLOW_JITTER * 0.1)
+                }
+            );
+        }
     }
 }
 
@@ -2293,6 +2469,21 @@ function splat (x, y, dx, dy, color, options) {
 
     if (!injectDye) { return; }
 
+    color = keepVividFluidColor(color, {
+        maxChannel: config.AURA_MODE ? 0.8 : 0.72,
+        maxAverage: config.AURA_MODE ? 0.54 : 0.48,
+        minChroma: config.AURA_MODE ? 0.14 : 0.2,
+        allowMonochrome: !!config.AURA_MODE
+    });
+    color = conditionInjectedFluidColor(x, y, color, {
+        maxChannel: config.AURA_MODE ? 0.8 : 0.72,
+        maxAverage: config.AURA_MODE ? 0.54 : 0.48,
+        minAverage: config.AURA_MODE ? 0.08 : 0.09,
+        minChroma: config.AURA_MODE ? 0.14 : 0.2,
+        fallbackColor: color,
+        allowMonochrome: !!config.AURA_MODE
+    });
+
     gl.viewport(0, 0, dye.width, dye.height);
     gl.uniform1i(splatProgram.uniforms.uTarget, dye.read.attach(0));
     gl.uniform3f(splatProgram.uniforms.color, color.r, color.g, color.b);
@@ -2307,35 +2498,110 @@ function correctRadius (radius) {
     return radius;
 }
 
-function emitClickBlast (texcoordX, texcoordY, baseColor) {
+function emitClickBlast (texcoordX, texcoordY, baseColor, options) {
+    var settings = options || {};
     var sampledColor = sampleFluidColorAt(texcoordX, texcoordY);
+    var triSplatCount = 3;
+    var baseAngle = Math.random() * Math.PI * 2;
+    var baseHue = wrap(lastClickHue + 0.42 + (Math.random() * 0.16), 0, 1);
+    var blastForce = 260 + (config.SPLAT_FORCE * 0.034);
     var sampledEnergy = getColorEnergy(sampledColor);
-    var blastColor = preserveColorContrast(
-        mixColors(sampledColor || baseColor, baseColor, sampledEnergy > 0.05 ? 0.32 : 0.52),
-        0.18,
-        0.82
-    );
-    var blastSegments = 6;
-    var blastForce = 180 + (config.SPLAT_FORCE * 0.022);
-    var blastRadius = 0.14 + (config.SPLAT_RADIUS * 0.32);
-    var blastOffset = 0.014 + (config.SPLAT_RADIUS * 0.012);
+    var hotArea = sampledEnergy > 0.14;
+    var motionScale = settings.motionScale === undefined ? 1 : settings.motionScale;
+    var launchScale = settings.launchScale === undefined ? 1 : settings.launchScale;
+    lastClickHue = baseHue;
 
-    for (var blastIndex = 0; blastIndex < blastSegments; blastIndex++) {
-        var blastAngle = (blastIndex / blastSegments) * Math.PI * 2;
-        var outwardX = Math.cos(blastAngle);
-        var outwardY = Math.sin(blastAngle);
+    for (var triIndex = 0; triIndex < triSplatCount; triIndex++) {
+        var triAngle = baseAngle + (triIndex * ((Math.PI * 2) / triSplatCount));
+        var hue = wrap(baseHue + (triIndex / triSplatCount) + ((Math.random() - 0.5) * 0.035), 0, 1);
+        var hueColor = HSVtoRGB(hue, 0.94 + (Math.random() * 0.06), 0.68 + (Math.random() * 0.12));
+        var triColor = keepVividFluidColor(scaleColor({
+            r: hueColor.r,
+            g: hueColor.g,
+            b: hueColor.b
+        }, (hotArea ? 0.11 : 0.135) * config.COLOR_BOOST), {
+            maxChannel: 0.36,
+            maxAverage: 0.18,
+            minAverage: 0.075,
+            minChroma: 0.42,
+            fallbackColor: baseColor
+        });
+        triColor = keepVividFluidColor(scaleColor(triColor, hotArea ? 0.78 : 0.88), {
+            maxChannel: 0.34,
+            maxAverage: 0.17,
+            minAverage: 0.07,
+            minChroma: 0.44,
+            fallbackColor: baseColor
+        });
+
+        if (sampledColor) {
+            triColor = keepVividFluidColor(
+                mixColors(triColor, sampledColor, hotArea ? 0.002 : 0.01),
+                {
+                    maxChannel: 0.34,
+                    maxAverage: 0.16,
+                    minAverage: 0.07,
+                    minChroma: 0.44,
+                    fallbackColor: baseColor
+                }
+            );
+        }
+
+        triColor = preserveColorContrast(
+            mixColors(
+                triColor,
+                keepVividFluidColor(generateColor(), {
+                    maxChannel: 0.3,
+                    maxAverage: 0.16,
+                    minAverage: 0.06,
+                    minChroma: 0.4,
+                    fallbackColor: triColor
+                }),
+                0.05
+            ),
+            0.24,
+            0.34
+        );
+        triColor = keepVividFluidColor(triColor, {
+            maxChannel: 0.34,
+            maxAverage: 0.16,
+            minAverage: 0.07,
+            minChroma: 0.46,
+            fallbackColor: baseColor
+        });
+
+        var triForce = blastForce * motionScale * (hotArea ? 0.54 : 0.7) * (1 + (Math.random() * 0.3));
+        var launchOffset = ((hotArea ? 0.018 : 0.026) + (Math.random() * 0.012)) * launchScale;
+        var originX = clamp(texcoordX + (Math.cos(triAngle) * launchOffset), 0.02, 0.98);
+        var originY = clamp(texcoordY + (Math.sin(triAngle) * launchOffset), 0.02, 0.98);
+
         emitCreativeSplat(
-            clamp(texcoordX + (outwardX * blastOffset), 0.02, 0.98),
-            clamp(texcoordY + (outwardY * blastOffset), 0.02, 0.98),
-            outwardX * blastForce,
-            outwardY * blastForce,
-            blastColor,
+            texcoordX,
+            texcoordY,
+            Math.cos(triAngle) * triForce * 0.86,
+            Math.sin(triAngle) * triForce * 0.86,
+            triColor,
             {
-                radiusMultiplier: blastRadius,
-                injectDye: sampledEnergy < 0.06,
-                particleShape: 'ring',
-                particleSpread: config.PARTICLE_SPREAD + 0.2,
-                flowJitter: Math.max(0.04, config.FLOW_JITTER * 0.38)
+                radiusMultiplier: hotArea ? 0.08 : 0.1,
+                injectDye: false,
+                particleShape: 'soft',
+                particleSpread: 0.05,
+                flowJitter: 0.02
+            }
+        );
+
+        emitCreativeSplat(
+            originX,
+            originY,
+            Math.cos(triAngle) * triForce,
+            Math.sin(triAngle) * triForce,
+            triColor,
+            {
+                radiusMultiplier: (hotArea ? 0.14 : 0.2) + (Math.random() * 0.06),
+                injectDye: true,
+                particleShape: 'soft',
+                particleSpread: Math.max(0.06, config.PARTICLE_SPREAD * 0.24),
+                flowJitter: Math.max(0.02, config.FLOW_JITTER * 0.12)
             }
         );
     }
@@ -2472,7 +2738,11 @@ function onDeviceOrientation (e) {
         clamp(0.5 - (beta / 120), 0.08, 0.92),
         deltaGamma * 220,
         deltaBeta * -220,
-        amplifyColor(generateColor(), 8.0 * config.COLOR_BOOST)
+        keepVividFluidColor(amplifyColor(generateColor(), 8.0 * config.COLOR_BOOST), {
+            maxChannel: 0.72,
+            maxAverage: 0.48,
+            minChroma: 0.22
+        })
     );
 }
 
@@ -2572,7 +2842,11 @@ function generateColor () {
         g: c.g * (0.19 * config.COLOR_BOOST),
         b: c.b * (0.19 * config.COLOR_BOOST)
     };
-    return blendAuraColor(preserveColorContrast(softLimitColor(c, 0.82), 0.24, 0.82));
+    return blendAuraColor(keepVividFluidColor(c, {
+        maxChannel: 0.78,
+        maxAverage: 0.5,
+        minChroma: 0.22
+    }));
 }
 
 function HSVtoRGB (h, s, v) {

@@ -103,6 +103,7 @@ class Artistic_Creation_Environment {
 		$asset_path            = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/index.asset.php';
 		$style_path            = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/index.css';
 		$runtime_script_path   = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/fluid-simulation.js';
+		$ascii_script_path     = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/ascii-world.js';
 		$frontend_script_path  = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/frontend.js';
 
 		if ( file_exists( $script_path ) && file_exists( $asset_path ) ) {
@@ -111,6 +112,10 @@ class Artistic_Creation_Environment {
 
 			if ( file_exists( $runtime_script_path ) ) {
 				$editor_dependencies[] = 'artistic-creation-environment-runtime';
+			}
+
+			if ( file_exists( $ascii_script_path ) ) {
+				$editor_dependencies[] = 'artistic-creation-environment-ascii';
 			}
 
 			wp_register_script(
@@ -153,11 +158,26 @@ class Artistic_Creation_Environment {
 			);
 		}
 
+		if ( file_exists( $ascii_script_path ) ) {
+			wp_register_script(
+				'artistic-creation-environment-ascii',
+				ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/ascii-world.js',
+				array(),
+				(string) filemtime( $ascii_script_path ),
+				true
+			);
+		}
+
 		if ( file_exists( $frontend_script_path ) ) {
 			wp_register_script(
 				'artistic-creation-environment-frontend',
 				ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/frontend.js',
-				array( 'artistic-creation-environment-runtime' ),
+				array_filter(
+					array(
+						file_exists( $runtime_script_path ) ? 'artistic-creation-environment-runtime' : null,
+						file_exists( $ascii_script_path ) ? 'artistic-creation-environment-ascii' : null,
+					)
+				),
 				(string) filemtime( $frontend_script_path ),
 				true
 			);
@@ -247,7 +267,7 @@ class Artistic_Creation_Environment {
 		$input    = is_array( $input ) ? $input : array();
 
 		$default_effect = isset( $input['default_effect'] ) ? sanitize_key( $input['default_effect'] ) : $defaults['default_effect'];
-		if ( ! in_array( $default_effect, array( 'liquid-splash', '' ), true ) ) {
+		if ( ! in_array( $default_effect, array( 'liquid-splash', 'ascii-world', '' ), true ) ) {
 			$default_effect = $defaults['default_effect'];
 		}
 
@@ -263,7 +283,7 @@ class Artistic_Creation_Environment {
 			'splat_radius'         => $this->sanitize_float( $input, 'splat_radius', 0.01, 4, $defaults['splat_radius'] ),
 			'autoplay'             => $this->sanitize_bool( $input, 'autoplay', $defaults['autoplay'] ),
 			'autoplay_intensity'   => $this->sanitize_float( $input, 'autoplay_intensity', 0.2, 2, $defaults['autoplay_intensity'] ),
-			'autoplay_easing'      => $this->sanitize_float( $input, 'autoplay_easing', 0.5, 2.5, $defaults['autoplay_easing'] ),
+			'autoplay_easing'      => $this->sanitize_float( $input, 'autoplay_easing', 0.5, 5, $defaults['autoplay_easing'] ),
 			'hover'                => $this->sanitize_bool( $input, 'hover', $defaults['hover'] ),
 			'touch'                => $this->sanitize_bool( $input, 'touch', $defaults['touch'] ),
 			'tilt'                 => $this->sanitize_bool( $input, 'tilt', $defaults['tilt'] ),
@@ -297,7 +317,10 @@ class Artistic_Creation_Environment {
 		$settings     = $this->get_settings();
 		$catalog      = $this->get_effect_catalog();
 		$preview_urls = $this->get_editor_preview_urls();
-		$preview_src  = add_query_arg( 'embedded', '1', $preview_urls['liquid-splash'] );
+		$preview_effect = ! empty( $settings['default_effect'] ) && ! empty( $preview_urls[ $settings['default_effect'] ] )
+			? $settings['default_effect']
+			: 'liquid-splash';
+		$preview_src  = ! empty( $preview_urls[ $preview_effect ] ) ? add_query_arg( 'embedded', '1', $preview_urls[ $preview_effect ] ) : '';
 		?>
 		<div class="wrap artistic-creation-environment-admin">
 			<h1><?php esc_html_e( 'Artistic Creation Environment', 'artistic-creation-environment' ); ?></h1>
@@ -331,6 +354,7 @@ class Artistic_Creation_Environment {
 										>
 											<option value="" <?php selected( $settings['default_effect'], '' ); ?>><?php esc_html_e( 'None', 'artistic-creation-environment' ); ?></option>
 											<option value="liquid-splash" <?php selected( $settings['default_effect'], 'liquid-splash' ); ?>><?php esc_html_e( 'Liquid Splash', 'artistic-creation-environment' ); ?></option>
+											<option value="ascii-world" <?php selected( $settings['default_effect'], 'ascii-world' ); ?>><?php esc_html_e( 'ASCII World', 'artistic-creation-environment' ); ?></option>
 										</select>
 										<p class="description"><?php esc_html_e( 'Used when a Creative block chooses “Site default”.', 'artistic-creation-environment' ); ?></p>
 									</td>
@@ -344,7 +368,7 @@ class Artistic_Creation_Environment {
 								<?php $this->render_range_row( 'Splat radius', 'splat_radius', $settings['splat_radius'], 0.01, 4, 0.01, 'splatRadius', __( 'Sets the radius of interaction splats for pointer movement.', 'artistic-creation-environment' ) ); ?>
 								<?php $this->render_toggle_row( 'Autoplay', 'autoplay', $settings['autoplay'], 'autoplay', __( 'Keep the fluid alive with automatic colour splashes before anyone touches the Creative block.', 'artistic-creation-environment' ) ); ?>
 								<?php $this->render_range_row( 'Autoplay intensity', 'autoplay_intensity', $settings['autoplay_intensity'], 0.2, 2, 0.1, 'autoplayIntensity', __( 'Controls how energetic the automatic splashes feel.', 'artistic-creation-environment' ) ); ?>
-								<?php $this->render_range_row( 'Autoplay easing', 'autoplay_easing', $settings['autoplay_easing'], 0.5, 2.5, 0.1, 'autoplayEasing', __( 'Higher values make automatic splashes ease in more slowly and softly before they bloom into motion.', 'artistic-creation-environment' ) ); ?>
+								<?php $this->render_range_row( 'Autoplay easing', 'autoplay_easing', $settings['autoplay_easing'], 0.5, 5, 0.1, 'autoplayEasing', __( 'Higher values make automatic splashes take longer to grow and ease in more slowly before they bloom into motion.', 'artistic-creation-environment' ) ); ?>
 								<?php $this->render_toggle_row( 'Hover interaction', 'hover', $settings['hover'], 'hover', __( 'Let mouse movement disturb the fluid without requiring a click.', 'artistic-creation-environment' ) ); ?>
 								<?php $this->render_toggle_row( 'Touch interaction', 'touch', $settings['touch'], 'touch', __( 'Let touch and drag gestures push through the fluid on phones and tablets.', 'artistic-creation-environment' ) ); ?>
 								<?php $this->render_toggle_row( 'Tilt interaction', 'tilt', $settings['tilt'], 'tilt', __( 'Use device orientation when the current browser and hardware expose it. This typically works on mobile devices, while MacBooks usually do not expose tilt sensors to the page.', 'artistic-creation-environment' ) ); ?>
@@ -402,8 +426,8 @@ class Artistic_Creation_Environment {
 									<strong><?php esc_html_e( 'Performance:', 'artistic-creation-environment' ); ?></strong>
 									<?php echo esc_html( $effect['performance'] ); ?>
 								</p>
-								<?php if ( 'liquid-splash' === $effect_key ) : ?>
-									<p class="description"><?php esc_html_e( 'This is the first shipped effect and is already available inside Creative block controls.', 'artistic-creation-environment' ); ?></p>
+								<?php if ( in_array( $effect_key, array( 'liquid-splash', 'ascii-world' ), true ) ) : ?>
+									<p class="description"><?php esc_html_e( 'This effect is already available inside Creative block controls.', 'artistic-creation-environment' ); ?></p>
 								<?php endif; ?>
 							</article>
 						<?php endforeach; ?>
@@ -548,6 +572,7 @@ class Artistic_Creation_Environment {
 	private function get_editor_preview_urls() {
 		return array(
 			'liquid-splash' => $this->get_effect_file_url( 'liquid-splash' ),
+			'ascii-world'   => $this->get_effect_file_url( 'ascii-world' ),
 		);
 	}
 
@@ -565,6 +590,14 @@ class Artistic_Creation_Environment {
 				'summary'      => __( 'A local adaptation of the PavelDoGreat-style WebGL fluid simulation with autoplay, hover, tilt, WebCam motion input, microphone or system-audio reaction, saturated colour controls, and live-tunable post effects.', 'artistic-creation-environment' ),
 				'inputs'       => array( 'Hover', 'Touch', 'Pointer drag', 'Tilt', 'WebCam motion', 'Audio reactive' ),
 				'performance'  => __( 'Runs fully on the GPU with adjustable dye and simulation resolutions, so you can keep it vivid without losing smooth playback on modern browsers.', 'artistic-creation-environment' ),
+			),
+			'ascii-world' => array(
+				'label'        => __( 'ASCII World', 'artistic-creation-environment' ),
+				'status'       => 'available',
+				'status_label' => __( 'Live now', 'artistic-creation-environment' ),
+				'summary'      => __( 'An interactive ASCII renderer with a built-in world-map source, image override support, animated drift, glow, contrast controls, and pointer-driven distortion.', 'artistic-creation-environment' ),
+				'inputs'       => array( 'Hover', 'Touch', 'Pointer movement', 'Image source override' ),
+				'performance'  => __( 'Uses lightweight text rendering instead of WebGL, so it stays smooth on modern browsers while still feeling reactive and stylised.', 'artistic-creation-environment' ),
 			),
 			'aurora-flow' => array(
 				'label'        => __( 'Aurora Flow', 'artistic-creation-environment' ),
@@ -808,6 +841,20 @@ class Artistic_Creation_Environment {
 	 * @return string
 	 */
 	private function get_effect_file_url( $effect ) {
+		if ( 'ascii-world' === $effect ) {
+			$build_path = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/ascii-world.html';
+			if ( file_exists( $build_path ) ) {
+				return ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/ascii-world.html';
+			}
+
+			$source_path = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'src/ascii-world.html';
+			if ( file_exists( $source_path ) ) {
+				return ARTISTIC_CREATION_ENVIRONMENT_URL . 'src/ascii-world.html';
+			}
+
+			return '';
+		}
+
 		if ( 'liquid-splash' !== $effect ) {
 			return '';
 		}
@@ -846,6 +893,10 @@ class Artistic_Creation_Environment {
 
 		if ( wp_script_is( 'artistic-creation-environment-runtime', 'registered' ) ) {
 			wp_enqueue_script( 'artistic-creation-environment-runtime' );
+		}
+
+		if ( wp_script_is( 'artistic-creation-environment-ascii', 'registered' ) ) {
+			wp_enqueue_script( 'artistic-creation-environment-ascii' );
 		}
 
 		if ( wp_script_is( 'artistic-creation-environment-frontend', 'registered' ) ) {

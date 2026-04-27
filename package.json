@@ -5,7 +5,7 @@
   "scripts": {
     "build": "wp-scripts build && npm run build:effects",
     "start": "wp-scripts start",
-    "build:effects": "mkdir -p build && cp src/liquid-splash.html build/liquid-splash.html && cp src/fluid-simulation.js build/fluid-simulation.js && cp src/frontend.js build/frontend.js && cp src/LDR_LLL1_0.png build/LDR_LLL1_0.png"
+    "build:effects": "mkdir -p build && cp src/liquid-splash.html build/liquid-splash.html && cp src/ascii-world.html build/ascii-world.html && cp src/fluid-simulation.js build/fluid-simulation.js && cp src/ascii-world.js build/ascii-world.js && cp src/frontend.js build/frontend.js && cp src/LDR_LLL1_0.png build/LDR_LLL1_0.png"
   },
   "devDependencies": {
     "@wordpress/scripts": "^30.11.0"

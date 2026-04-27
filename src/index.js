@@ -1,22 +1,29 @@
 import { __ } from '@wordpress/i18n';
 import { registerBlockType } from '@wordpress/blocks';
 import { Fragment, useEffect, useRef, useState } from '@wordpress/element';
-import { useResizeObserver } from '@wordpress/compose';
+import { addFilter } from '@wordpress/hooks';
+import { useDispatch, useSelect } from '@wordpress/data';
+import { createHigherOrderComponent, useResizeObserver } from '@wordpress/compose';
 import {
+	BlockVerticalAlignmentToolbar,
 	BlockControls,
 	ColorPalette,
 	InspectorControls,
 	InnerBlocks,
+	MediaUpload,
+	MediaUploadCheck,
 	useBlockProps,
 	useInnerBlocksProps,
 	useSettings,
 } from '@wordpress/block-editor';
 import {
+	Button,
 	Notice,
 	PanelBody,
 	RangeControl,
 	ResizableBox,
 	SelectControl,
+	TextareaControl,
 	ToolbarButton,
 	ToolbarGroup,
 	ToggleControl,
@@ -28,6 +35,8 @@ const pluginData = window.artisticCreationEnvironment || {};
 const defaultEffect = pluginData.defaultEffect || 'liquid-splash';
 const defaults = pluginData.defaults || {};
 const effectCatalog = pluginData.effects || {};
+const FLUID_EFFECT = 'liquid-splash';
+const ASCII_EFFECT = 'ascii-world';
 
 const QUALITY_OPTIONS = [
 	{ label: __( 'High', 'artistic-creation-environment' ), value: 1024 },
@@ -104,10 +113,46 @@ const CONTENT_EFFECT_PRESET_OPTIONS = [
 	{ label: __( 'Custom', 'artistic-creation-environment' ), value: 'custom' },
 ];
 
+const CHILD_CONTENT_EFFECT_BLOCKS = [
+	'core/heading',
+	'core/paragraph',
+	'core/list',
+	'core/quote',
+	'core/pullquote',
+	'core/preformatted',
+	'core/code',
+	'core/button',
+];
+
 const BLEND_MODE_OPTIONS = [
 	{ label: __( 'Normal', 'artistic-creation-environment' ), value: 'normal' },
+	{
+		label: __( 'Multiply', 'artistic-creation-environment' ),
+		value: 'multiply',
+	},
 	{ label: __( 'Screen', 'artistic-creation-environment' ), value: 'screen' },
 	{ label: __( 'Overlay', 'artistic-creation-environment' ), value: 'overlay' },
+	{ label: __( 'Darken', 'artistic-creation-environment' ), value: 'darken' },
+	{
+		label: __( 'Lighten', 'artistic-creation-environment' ),
+		value: 'lighten',
+	},
+	{
+		label: __( 'Colour dodge', 'artistic-creation-environment' ),
+		value: 'color-dodge',
+	},
+	{
+		label: __( 'Colour burn', 'artistic-creation-environment' ),
+		value: 'color-burn',
+	},
+	{
+		label: __( 'Hard light', 'artistic-creation-environment' ),
+		value: 'hard-light',
+	},
+	{
+		label: __( 'Soft light', 'artistic-creation-environment' ),
+		value: 'soft-light',
+	},
 	{
 		label: __( 'Difference', 'artistic-creation-environment' ),
 		value: 'difference',
@@ -116,17 +161,65 @@ const BLEND_MODE_OPTIONS = [
 		label: __( 'Exclusion', 'artistic-creation-environment' ),
 		value: 'exclusion',
 	},
+	{ label: __( 'Hue', 'artistic-creation-environment' ), value: 'hue' },
 	{
-		label: __( 'Colour dodge', 'artistic-creation-environment' ),
-		value: 'color-dodge',
+		label: __( 'Saturation', 'artistic-creation-environment' ),
+		value: 'saturation',
+	},
+	{
+		label: __( 'Colour', 'artistic-creation-environment' ),
+		value: 'color',
 	},
 	{
 		label: __( 'Luminosity', 'artistic-creation-environment' ),
 		value: 'luminosity',
 	},
+	{
+		label: __( 'Plus lighter', 'artistic-creation-environment' ),
+		value: 'plus-lighter',
+	},
+];
+
+const VERTICAL_ALIGN_OPTIONS = [
+	{ label: __( 'Top', 'artistic-creation-environment' ), value: 'top' },
+	{ label: __( 'Middle', 'artistic-creation-environment' ), value: 'center' },
+	{ label: __( 'Bottom', 'artistic-creation-environment' ), value: 'bottom' },
+];
+
+const ASCII_SOURCE_OPTIONS = [
+	{
+		label: __( 'Built-in world map', 'artistic-creation-environment' ),
+		value: 'world-map',
+	},
+	{
+		label: __( 'Custom ASCII art', 'artistic-creation-environment' ),
+		value: 'ascii-art',
+	},
+	{
+		label: __( 'Image override', 'artistic-creation-environment' ),
+		value: 'image',
+	},
+];
+
+const ASCII_CHARACTER_SET_OPTIONS = [
+	{ label: __( 'Atlas', 'artistic-creation-environment' ), value: 'atlas' },
+	{ label: __( 'Dense', 'artistic-creation-environment' ), value: 'dense' },
+	{ label: __( 'Glow', 'artistic-creation-environment' ), value: 'glow' },
+	{ label: __( 'Blocks', 'artistic-creation-environment' ), value: 'blocks' },
 ];
 
 const DEFAULT_CONTENT_SURFACE_COLOR = '#ffffff';
+const CHILD_INTERACTION_MODE_OPTIONS = [
+	{ label: __( 'None', 'artistic-creation-environment' ), value: 'none' },
+	{ label: __( 'Push away', 'artistic-creation-environment' ), value: 'repel' },
+	{
+		label: __( 'Pull inward', 'artistic-creation-environment' ),
+		value: 'attract',
+	},
+	{ label: __( 'Orbit', 'artistic-creation-environment' ), value: 'orbit' },
+	{ label: __( 'Float drift', 'artistic-creation-environment' ), value: 'drift' },
+	{ label: __( 'Pulse', 'artistic-creation-environment' ), value: 'pulse' },
+];
 const RESIZABLE_BOX_ENABLE_OPTION = {
 	top: false,
 	right: false,
@@ -145,16 +238,24 @@ const EFFECT_OPTIONS = [
 	},
 	{
 		label:
-			effectCatalog['liquid-splash']?.label ||
+			effectCatalog[ FLUID_EFFECT ]?.label ||
 			__( 'Fluid Simulation', 'artistic-creation-environment' ),
-		value: 'liquid-splash',
+		value: FLUID_EFFECT,
+	},
+	{
+		label:
+			effectCatalog[ ASCII_EFFECT ]?.label ||
+			__( 'ASCII World', 'artistic-creation-environment' ),
+		value: ASCII_EFFECT,
 	},
 ];
 
 const DEFAULT_BACKGROUND_COLOR = '#1c1226';
+const LEGACY_ASCII_BACKGROUND_COLOR = '#020617';
 const DEFAULT_OVERLAY_COLOR = '#000000';
 const DEFAULT_BLOCK_MIN_HEIGHT = 320;
 const MIN_BLOCK_HEIGHT = 120;
+const DEFAULT_ASCII_TINT_COLOR = '#7dd3fc';
 const LEGACY_BACKDROP_COLORS = {
 	aurora: '#1c1226',
 	lagoon: '#0c2a28',
@@ -330,6 +431,67 @@ const ATTRIBUTE_DEFINITIONS = {
 	aceCreativeBackgroundColorBoost: { type: 'number' },
 	aceCreativeBackgroundAuraMode: { type: 'boolean' },
 	aceCreativeBackgroundBackdropStyle: { type: 'string' },
+	aceCreativeAsciiSource: {
+		type: 'string',
+		default: 'world-map',
+	},
+	aceCreativeAsciiImageUrl: {
+		type: 'string',
+		default: '',
+	},
+	aceCreativeAsciiImageId: {
+		type: 'number',
+	},
+	aceCreativeAsciiImageWidth: {
+		type: 'number',
+	},
+	aceCreativeAsciiImageHeight: {
+		type: 'number',
+	},
+	aceCreativeAsciiCustomText: {
+		type: 'string',
+		default: '',
+	},
+	aceCreativeAsciiCharacterSet: {
+		type: 'string',
+		default: 'atlas',
+	},
+	aceCreativeAsciiDensity: {
+		type: 'number',
+		default: 128,
+	},
+	aceCreativeAsciiFontSize: {
+		type: 'number',
+		default: 11,
+	},
+	aceCreativeAsciiTintColor: {
+		type: 'string',
+		default: DEFAULT_ASCII_TINT_COLOR,
+	},
+	aceCreativeAsciiGlow: {
+		type: 'number',
+		default: 0.38,
+	},
+	aceCreativeAsciiContrast: {
+		type: 'number',
+		default: 1.14,
+	},
+	aceCreativeAsciiMotion: {
+		type: 'number',
+		default: 0.72,
+	},
+	aceCreativeAsciiInteraction: {
+		type: 'number',
+		default: 0.88,
+	},
+	aceCreativeAsciiNoise: {
+		type: 'number',
+		default: 0.08,
+	},
+	aceCreativeAsciiInvert: {
+		type: 'boolean',
+		default: false,
+	},
 	aceCreativeContentEffectPreset: {
 		type: 'string',
 		default: 'none',
@@ -358,6 +520,30 @@ const ATTRIBUTE_DEFINITIONS = {
 		type: 'boolean',
 		default: false,
 	},
+	aceCreativeChildInteractionMode: {
+		type: 'string',
+		default: 'none',
+	},
+	aceCreativeChildInteractionIntensity: {
+		type: 'number',
+		default: 1,
+	},
+	aceCreativeChildInteractionRadius: {
+		type: 'number',
+		default: 220,
+	},
+	aceCreativeChildInteractionDepth: {
+		type: 'number',
+		default: 44,
+	},
+	aceCreativeChildInteractionIdle: {
+		type: 'number',
+		default: 0.18,
+	},
+	aceCreativeVerticalAlign: {
+		type: 'string',
+		default: 'top',
+	},
 };
 
 const resolveValue = ( attributes, key ) =>
@@ -370,12 +556,35 @@ const resolveValue = ( attributes, key ) =>
 const resolveLegacyBackdropColor = ( backdropStyle ) =>
 	LEGACY_BACKDROP_COLORS[ backdropStyle ] || DEFAULT_BACKGROUND_COLOR;
 
-const resolveBackgroundColor = ( attributes = {} ) =>
-	attributes.aceCreativeBackgroundColor ||
-	defaults.aceCreativeBackgroundColor ||
-	resolveLegacyBackdropColor(
-		resolveValue( attributes, 'aceCreativeBackgroundBackdropStyle' )
+const getExplicitAsciiBackgroundColor = ( attributes = {} ) => {
+	const value = attributes.aceCreativeBackgroundColor;
+
+	if ( typeof value !== 'string' || ! value ) {
+		return undefined;
+	}
+
+	return value.toLowerCase() === LEGACY_ASCII_BACKGROUND_COLOR
+		? undefined
+		: value;
+};
+
+const resolveBackgroundColor = ( attributes = {} ) => {
+	const resolvedEffect = resolveEffect(
+		attributes.aceCreativeBackgroundEffect || 'site-default'
 	);
+
+	if ( resolvedEffect === ASCII_EFFECT ) {
+		return getExplicitAsciiBackgroundColor( attributes ) || 'transparent';
+	}
+
+	return (
+		attributes.aceCreativeBackgroundColor ||
+		defaults.aceCreativeBackgroundColor ||
+		resolveLegacyBackdropColor(
+			resolveValue( attributes, 'aceCreativeBackgroundBackdropStyle' )
+		)
+	);
+};
 
 const getMinHeightValue = ( attributes = {} ) => {
 	const rawValue = attributes?.style?.dimensions?.minHeight;
@@ -434,11 +643,41 @@ const hasContentEffects = ( attributes = {} ) => {
 	);
 };
 
+const getChildInteractivityValues = ( attributes = {} ) => ( {
+	mode: attributes.aceCreativeChildInteractionMode || 'none',
+	intensity:
+		attributes.aceCreativeChildInteractionIntensity ??
+		ATTRIBUTE_DEFINITIONS.aceCreativeChildInteractionIntensity.default,
+	radius:
+		attributes.aceCreativeChildInteractionRadius ??
+		ATTRIBUTE_DEFINITIONS.aceCreativeChildInteractionRadius.default,
+	depth:
+		attributes.aceCreativeChildInteractionDepth ??
+		ATTRIBUTE_DEFINITIONS.aceCreativeChildInteractionDepth.default,
+	idle:
+		attributes.aceCreativeChildInteractionIdle ??
+		ATTRIBUTE_DEFINITIONS.aceCreativeChildInteractionIdle.default,
+} );
+
+const hasChildInteractivity = ( attributes = {} ) => {
+	const values = getChildInteractivityValues( attributes );
+
+	return (
+		values.mode !== 'none' &&
+		values.intensity > 0 &&
+		values.radius > 0 &&
+		values.depth > 0
+	);
+};
+
 const getOuterClassName = ( attributes = {} ) =>
 	[
 		'artistic-creative',
 		hasContentEffects( attributes )
 			? 'artistic-creative--content-effects'
+			: null,
+		hasChildInteractivity( attributes )
+			? 'artistic-creative--child-interactivity'
 			: null,
 	]
 		.filter( Boolean )
@@ -470,19 +709,6 @@ const getContentEffectStyle = ( attributes = {} ) => {
 				: preset === 'frost'
 					? 165
 					: 100;
-	const presetPadding =
-		preset === 'none' &&
-		! contentValues.surfaceOpacity &&
-		! contentValues.borderOpacity
-			? '0'
-			: '0.18em 0.32em';
-	const presetRadius =
-		preset === 'none' &&
-		! contentValues.surfaceOpacity &&
-		! contentValues.borderOpacity
-			? '0px'
-			: '18px';
-
 	return {
 		'--ace-content-blend-mode': contentValues.blendMode || 'normal',
 		'--ace-content-backdrop-blur': `${ contentValues.backdropBlur || 0 }px`,
@@ -497,26 +723,75 @@ const getContentEffectStyle = ( attributes = {} ) => {
 		'--ace-content-invert': contentValues.invert ? '1' : '0',
 		'--ace-content-shadow': presetShadow,
 		'--ace-content-saturate': `${ presetSaturate }%`,
-		'--ace-content-padding': presetPadding,
-		'--ace-content-radius': presetRadius,
+	};
+};
+
+const getChildInteractivityStyle = ( attributes = {} ) => {
+	if ( ! hasChildInteractivity( attributes ) ) {
+		return undefined;
+	}
+
+	const values = getChildInteractivityValues( attributes );
+
+	return {
+		'--ace-child-interaction-intensity': String( values.intensity || 0 ),
+		'--ace-child-interaction-radius': `${ values.radius || 0 }px`,
+		'--ace-child-interaction-depth': `${ values.depth || 0 }px`,
+		'--ace-child-interaction-idle': String( values.idle || 0 ),
+	};
+};
+
+const getBlockDataAttributes = ( attributes = {} ) =>
+	hasChildInteractivity( attributes )
+		? {
+				'data-ace-child-interaction-mode':
+					getChildInteractivityValues( attributes ).mode,
+		  }
+		: {};
+
+const getVerticalAlignStyle = ( attributes = {} ) => {
+	const verticalAlign = attributes.aceCreativeVerticalAlign || 'top';
+
+	if ( verticalAlign === 'top' ) {
+		return undefined;
+	}
+
+	return {
+		'--ace-vertical-justify':
+			verticalAlign === 'bottom' ? 'flex-end' : 'center',
 	};
 };
 
 const getEditorBlockStyle = ( attributes = {} ) => {
 	const contentStyle = getContentEffectStyle( attributes ) || {};
+	const childInteractivityStyle =
+		getChildInteractivityStyle( attributes ) || {};
+	const verticalAlignStyle = getVerticalAlignStyle( attributes ) || {};
+	const blockStyle = {
+		...contentStyle,
+		...childInteractivityStyle,
+		...verticalAlignStyle,
+	};
 
 	if ( attributes?.style?.dimensions?.minHeight ) {
-		return Object.keys( contentStyle ).length ? contentStyle : undefined;
+		return Object.keys( blockStyle ).length ? blockStyle : undefined;
 	}
 
 	return {
-		...contentStyle,
+		...blockStyle,
 		minHeight: `${ DEFAULT_BLOCK_MIN_HEIGHT }px`,
 	};
 };
 
-const getSavedBlockStyle = ( attributes = {} ) =>
-	getContentEffectStyle( attributes ) || undefined;
+const getSavedBlockStyle = ( attributes = {} ) => {
+	const blockStyle = {
+		...( getContentEffectStyle( attributes ) || {} ),
+		...( getChildInteractivityStyle( attributes ) || {} ),
+		...( getVerticalAlignStyle( attributes ) || {} ),
+	};
+
+	return Object.keys( blockStyle ).length ? blockStyle : undefined;
+};
 
 const resolveEffect = ( effectValue ) => {
 	if ( effectValue === 'site-default' ) {
@@ -526,103 +801,455 @@ const resolveEffect = ( effectValue ) => {
 	return effectValue || '';
 };
 
-const getEffectConfig = ( attributes = {}, options = {} ) => ( {
-	effect: resolveEffect( attributes.aceCreativeBackgroundEffect || 'site-default' ),
-	...( options.includeBackgroundColor ||
-	attributes.aceCreativeBackgroundColor !== undefined
-		? { backgroundColor: resolveBackgroundColor( attributes ) }
-		: {} ),
-	dyeResolution: resolveValue( attributes, 'aceCreativeBackgroundDyeResolution' ),
-	simResolution: resolveValue( attributes, 'aceCreativeBackgroundSimResolution' ),
-	densityDissipation: resolveValue(
-		attributes,
-		'aceCreativeBackgroundDensityDissipation'
-	),
-	velocityDissipation: resolveValue(
-		attributes,
-		'aceCreativeBackgroundVelocityDissipation'
-	),
-	pressure: resolveValue( attributes, 'aceCreativeBackgroundPressure' ),
-	curl: resolveValue( attributes, 'aceCreativeBackgroundCurl' ),
-	splatRadius: resolveValue( attributes, 'aceCreativeBackgroundSplatRadius' ),
-	particleShape: resolveValue(
-		attributes,
-		'aceCreativeBackgroundParticleShape'
-	),
-	particleSpread: resolveValue(
-		attributes,
-		'aceCreativeBackgroundParticleSpread'
-	),
-	flowJitter: resolveValue( attributes, 'aceCreativeBackgroundFlowJitter' ),
-	shading: resolveValue( attributes, 'aceCreativeBackgroundShading' ),
-	colorful: resolveValue( attributes, 'aceCreativeBackgroundColorful' ),
-	bloom: resolveValue( attributes, 'aceCreativeBackgroundBloom' ),
-	bloomIntensity: resolveValue(
-		attributes,
-		'aceCreativeBackgroundBloomIntensity'
-	),
-	bloomThreshold: resolveValue(
-		attributes,
-		'aceCreativeBackgroundBloomThreshold'
-	),
-	sunrays: resolveValue( attributes, 'aceCreativeBackgroundSunrays' ),
-	sunraysWeight: resolveValue(
-		attributes,
-		'aceCreativeBackgroundSunraysWeight'
-	),
-	autoplay: resolveValue( attributes, 'aceCreativeBackgroundAutoplay' ),
-	autoplayIntensity: resolveValue(
-		attributes,
-		'aceCreativeBackgroundAutoplayIntensity'
-	),
-	autoplayEasing: resolveValue(
-		attributes,
-		'aceCreativeBackgroundAutoplayEasing'
-	),
-	hover: resolveValue( attributes, 'aceCreativeBackgroundHover' ),
-	touch: resolveValue( attributes, 'aceCreativeBackgroundTouch' ),
-	tilt: resolveValue( attributes, 'aceCreativeBackgroundTilt' ),
-	webcamMotion: resolveValue(
-		attributes,
-		'aceCreativeBackgroundWebcamMotion'
-	),
-	...( attributes.aceCreativeBackgroundWebcamColorMix
-		? { webcamColorMix: true }
-		: {} ),
-	webcamIntensity: resolveValue(
-		attributes,
-		'aceCreativeBackgroundWebcamIntensity'
-	),
-	audioInput: resolveValue( attributes, 'aceCreativeBackgroundAudioInput' ),
-	audioIntensity: resolveValue(
-		attributes,
-		'aceCreativeBackgroundAudioIntensity'
-	),
-	colorBoost: resolveValue( attributes, 'aceCreativeBackgroundColorBoost' ),
-	auraMode: resolveValue( attributes, 'aceCreativeBackgroundAuraMode' ),
-	backdropStyle: resolveValue(
-		attributes,
-		'aceCreativeBackgroundBackdropStyle'
-	),
-} );
+const getRuntimeFactory = ( effect ) => {
+	if ( effect === ASCII_EFFECT ) {
+		return window.ArtisticCreationEnvironmentAscii;
+	}
+
+	if ( effect === FLUID_EFFECT ) {
+		return window.ArtisticCreationEnvironmentFluid;
+	}
+
+	return null;
+};
+
+const getCreativeInteractiveTargets = ( blockElement ) =>
+	blockElement?.querySelector(
+		'.artistic-creative__inner-container > .block-editor-inner-blocks > .block-editor-block-list__layout'
+	 ) ||
+	blockElement?.querySelector(
+		'.artistic-creative__inner-container > .block-editor-block-list__layout'
+	 ) ||
+	blockElement?.querySelector( '.artistic-creative__inner-container' ) ||
+	null;
+
+const createCreativeChildInteractivity = ( blockElement ) => {
+	if (
+		! blockElement?.querySelector ||
+		typeof window === 'undefined' ||
+		window.matchMedia?.( '(prefers-reduced-motion: reduce)' )?.matches
+	) {
+		return null;
+	}
+
+	const mode =
+		blockElement.getAttribute( 'data-ace-child-interaction-mode' ) || 'none';
+
+	if ( mode === 'none' ) {
+		return null;
+	}
+
+	const targetsContainer = getCreativeInteractiveTargets( blockElement );
+
+	if ( ! targetsContainer ) {
+		return null;
+	}
+
+	const computedStyle = window.getComputedStyle( blockElement );
+	const intensity = Math.max(
+		0,
+		parseFloat(
+			computedStyle.getPropertyValue(
+				'--ace-child-interaction-intensity'
+			)
+		) || 0
+	);
+	const radius = Math.max(
+		1,
+		parseFloat(
+			computedStyle.getPropertyValue( '--ace-child-interaction-radius' )
+		) || 0
+	);
+	const depth = Math.max(
+		0,
+		parseFloat(
+			computedStyle.getPropertyValue( '--ace-child-interaction-depth' )
+		) || 0
+	);
+	const idle = Math.max(
+		0,
+		parseFloat(
+			computedStyle.getPropertyValue( '--ace-child-interaction-idle' )
+		) || 0
+	);
+
+	if ( intensity <= 0 || depth <= 0 ) {
+		return null;
+	}
+
+	targetsContainer.classList.add( 'artistic-creative__interactive-targets' );
+
+	let frameHandle = 0;
+	let destroyed = false;
+	const pointer = {
+		x: 0,
+		y: 0,
+		active: false,
+	};
+	const nodeStates = new WeakMap();
+	const targetFilter = ( node ) =>
+		node?.nodeType === 1 &&
+		! node.classList.contains( 'block-list-appender' ) &&
+		! node.classList.contains( 'block-editor-default-block-appender' );
+	const getTargets = () =>
+		Array.from( targetsContainer.children || [] ).filter( targetFilter );
+	const getNodeState = ( node, index ) => {
+		if ( ! nodeStates.has( node ) ) {
+			nodeStates.set( node, {
+				x: 0,
+				y: 0,
+				scale: 1,
+				rotate: 0,
+				direction: index % 2 === 0 ? 1 : -1,
+			} );
+		}
+
+		return nodeStates.get( node );
+	};
+	const resetNode = ( node ) => {
+		node.style.setProperty( '--ace-child-offset-x', '0px' );
+		node.style.setProperty( '--ace-child-offset-y', '0px' );
+		node.style.setProperty( '--ace-child-scale', '1' );
+		node.style.setProperty( '--ace-child-rotate', '0deg' );
+	};
+	const onPointerMove = ( event ) => {
+		pointer.x = event.clientX;
+		pointer.y = event.clientY;
+		pointer.active = true;
+	};
+	const onPointerLeave = () => {
+		pointer.active = false;
+	};
+	const update = () => {
+		if ( destroyed ) {
+			return;
+		}
+
+		const targets = getTargets();
+		const time = performance.now() * 0.0012;
+
+		targets.forEach( ( node, index ) => {
+			const state = getNodeState( node, index );
+			const rect = node.getBoundingClientRect();
+			const centerX = rect.left + rect.width * 0.5;
+			const centerY = rect.top + rect.height * 0.5;
+			const idleAmount = idle * depth;
+			let targetX =
+				idleAmount > 0
+					? Math.sin( time + index * 0.73 ) * idleAmount * 0.22
+					: 0;
+			let targetY =
+				idleAmount > 0
+					? Math.cos( time * 1.17 + index * 0.61 ) * idleAmount * 0.18
+					: 0;
+			let targetScale =
+				idleAmount > 0 && mode === 'pulse'
+					? 1 + Math.sin( time * 1.35 + index * 0.8 ) * idle * 0.035
+					: 1;
+			let targetRotate =
+				idleAmount > 0 && ( mode === 'orbit' || mode === 'drift' )
+					? Math.sin( time * 0.82 + index * 0.55 ) * idle * 3.5
+					: 0;
+
+			if ( pointer.active ) {
+				const dx = centerX - pointer.x;
+				const dy = centerY - pointer.y;
+				const distance = Math.max( 1, Math.sqrt( dx * dx + dy * dy ) );
+				const force = Math.max( 0, 1 - distance / radius );
+				const easedForce = force * force * intensity;
+				const normalX = dx / distance;
+				const normalY = dy / distance;
+
+				if ( mode === 'repel' ) {
+					targetX += normalX * depth * easedForce;
+					targetY += normalY * depth * easedForce;
+					targetRotate += state.direction * easedForce * 7;
+				} else if ( mode === 'attract' ) {
+					targetX -= normalX * depth * easedForce;
+					targetY -= normalY * depth * easedForce;
+					targetRotate -= state.direction * easedForce * 6;
+				} else if ( mode === 'orbit' ) {
+					targetX +=
+						-normalY * depth * easedForce * 0.92 * state.direction;
+					targetY +=
+						normalX * depth * easedForce * 0.92 * state.direction;
+					targetScale += easedForce * 0.035;
+					targetRotate += state.direction * easedForce * 10;
+				} else if ( mode === 'drift' ) {
+					targetX +=
+						( normalX * 0.35 -
+							normalY * 0.4 * state.direction ) *
+						depth *
+						easedForce;
+					targetY +=
+						( normalY * 0.28 +
+							normalX * 0.2 * state.direction ) *
+						depth *
+						easedForce;
+					targetRotate += normalX * easedForce * 8;
+					targetScale += easedForce * 0.02;
+				} else if ( mode === 'pulse' ) {
+					targetY -= depth * easedForce * 0.22;
+					targetScale += easedForce * 0.1;
+				}
+			}
+
+			state.x += ( targetX - state.x ) * 0.18;
+			state.y += ( targetY - state.y ) * 0.18;
+			state.scale += ( targetScale - state.scale ) * 0.16;
+			state.rotate += ( targetRotate - state.rotate ) * 0.16;
+
+			node.style.setProperty(
+				'--ace-child-offset-x',
+				`${ state.x.toFixed( 2 ) }px`
+			);
+			node.style.setProperty(
+				'--ace-child-offset-y',
+				`${ state.y.toFixed( 2 ) }px`
+			);
+			node.style.setProperty(
+				'--ace-child-scale',
+				state.scale.toFixed( 4 )
+			);
+			node.style.setProperty(
+				'--ace-child-rotate',
+				`${ state.rotate.toFixed( 2 ) }deg`
+			);
+		} );
+
+		frameHandle = window.requestAnimationFrame( update );
+	};
+
+	blockElement.addEventListener( 'pointermove', onPointerMove, true );
+	blockElement.addEventListener( 'pointerleave', onPointerLeave, true );
+	blockElement.addEventListener( 'pointercancel', onPointerLeave, true );
+	update();
+
+	return {
+		destroy() {
+			if ( destroyed ) {
+				return;
+			}
+
+			destroyed = true;
+			if ( frameHandle ) {
+				window.cancelAnimationFrame( frameHandle );
+				frameHandle = 0;
+			}
+			blockElement.removeEventListener( 'pointermove', onPointerMove, true );
+			blockElement.removeEventListener( 'pointerleave', onPointerLeave, true );
+			blockElement.removeEventListener( 'pointercancel', onPointerLeave, true );
+			targetsContainer.classList.remove(
+				'artistic-creative__interactive-targets'
+			);
+			getTargets().forEach( resetNode );
+		},
+	};
+};
+
+const getEffectConfig = ( attributes = {}, options = {} ) => {
+	const effect = resolveEffect(
+		attributes.aceCreativeBackgroundEffect || 'site-default'
+	);
+	const explicitAsciiBackgroundColor =
+		effect === ASCII_EFFECT
+			? getExplicitAsciiBackgroundColor( attributes )
+			: undefined;
+	const shouldIncludeBackgroundColor =
+		( effect === ASCII_EFFECT
+			? !! explicitAsciiBackgroundColor
+			: attributes.aceCreativeBackgroundColor !== undefined ) ||
+		( options.includeBackgroundColor && effect !== ASCII_EFFECT );
+	const baseConfig = {
+		effect,
+		...( shouldIncludeBackgroundColor
+			? { backgroundColor: resolveBackgroundColor( attributes ) }
+			: {} ),
+	};
+
+	if ( effect === ASCII_EFFECT ) {
+		return {
+			...baseConfig,
+			asciiSource: resolveValue( attributes, 'aceCreativeAsciiSource' ),
+			asciiImageUrl: resolveValue( attributes, 'aceCreativeAsciiImageUrl' ),
+			asciiImageWidth: resolveValue(
+				attributes,
+				'aceCreativeAsciiImageWidth'
+			),
+			asciiImageHeight: resolveValue(
+				attributes,
+				'aceCreativeAsciiImageHeight'
+			),
+			asciiCustomText: resolveValue(
+				attributes,
+				'aceCreativeAsciiCustomText'
+			),
+			asciiCharacterSet: resolveValue(
+				attributes,
+				'aceCreativeAsciiCharacterSet'
+			),
+			asciiDensity: resolveValue( attributes, 'aceCreativeAsciiDensity' ),
+			asciiFontSize: resolveValue( attributes, 'aceCreativeAsciiFontSize' ),
+			asciiTintColor: resolveValue(
+				attributes,
+				'aceCreativeAsciiTintColor'
+			),
+			asciiGlow: resolveValue( attributes, 'aceCreativeAsciiGlow' ),
+			asciiContrast: resolveValue(
+				attributes,
+				'aceCreativeAsciiContrast'
+			),
+			asciiMotion: resolveValue( attributes, 'aceCreativeAsciiMotion' ),
+			asciiInteraction: resolveValue(
+				attributes,
+				'aceCreativeAsciiInteraction'
+			),
+			asciiNoise: resolveValue( attributes, 'aceCreativeAsciiNoise' ),
+			asciiInvert: resolveValue( attributes, 'aceCreativeAsciiInvert' ),
+		};
+	}
+
+	if ( effect !== FLUID_EFFECT ) {
+		return baseConfig;
+	}
+
+	return {
+		...baseConfig,
+		dyeResolution: resolveValue( attributes, 'aceCreativeBackgroundDyeResolution' ),
+		simResolution: resolveValue( attributes, 'aceCreativeBackgroundSimResolution' ),
+		densityDissipation: resolveValue(
+			attributes,
+			'aceCreativeBackgroundDensityDissipation'
+		),
+		velocityDissipation: resolveValue(
+			attributes,
+			'aceCreativeBackgroundVelocityDissipation'
+		),
+		pressure: resolveValue( attributes, 'aceCreativeBackgroundPressure' ),
+		curl: resolveValue( attributes, 'aceCreativeBackgroundCurl' ),
+		splatRadius: resolveValue( attributes, 'aceCreativeBackgroundSplatRadius' ),
+		particleShape: resolveValue(
+			attributes,
+			'aceCreativeBackgroundParticleShape'
+		),
+		particleSpread: resolveValue(
+			attributes,
+			'aceCreativeBackgroundParticleSpread'
+		),
+		flowJitter: resolveValue( attributes, 'aceCreativeBackgroundFlowJitter' ),
+		shading: resolveValue( attributes, 'aceCreativeBackgroundShading' ),
+		colorful: resolveValue( attributes, 'aceCreativeBackgroundColorful' ),
+		bloom: resolveValue( attributes, 'aceCreativeBackgroundBloom' ),
+		bloomIntensity: resolveValue(
+			attributes,
+			'aceCreativeBackgroundBloomIntensity'
+		),
+		bloomThreshold: resolveValue(
+			attributes,
+			'aceCreativeBackgroundBloomThreshold'
+		),
+		sunrays: resolveValue( attributes, 'aceCreativeBackgroundSunrays' ),
+		sunraysWeight: resolveValue(
+			attributes,
+			'aceCreativeBackgroundSunraysWeight'
+		),
+		autoplay: resolveValue( attributes, 'aceCreativeBackgroundAutoplay' ),
+		autoplayIntensity: resolveValue(
+			attributes,
+			'aceCreativeBackgroundAutoplayIntensity'
+		),
+		autoplayEasing: resolveValue(
+			attributes,
+			'aceCreativeBackgroundAutoplayEasing'
+		),
+		hover: resolveValue( attributes, 'aceCreativeBackgroundHover' ),
+		touch: resolveValue( attributes, 'aceCreativeBackgroundTouch' ),
+		tilt: resolveValue( attributes, 'aceCreativeBackgroundTilt' ),
+		webcamMotion: resolveValue(
+			attributes,
+			'aceCreativeBackgroundWebcamMotion'
+		),
+		...( attributes.aceCreativeBackgroundWebcamColorMix
+			? { webcamColorMix: true }
+			: {} ),
+		webcamIntensity: resolveValue(
+			attributes,
+			'aceCreativeBackgroundWebcamIntensity'
+		),
+		audioInput: resolveValue( attributes, 'aceCreativeBackgroundAudioInput' ),
+		audioIntensity: resolveValue(
+			attributes,
+			'aceCreativeBackgroundAudioIntensity'
+		),
+		colorBoost: resolveValue( attributes, 'aceCreativeBackgroundColorBoost' ),
+		auraMode: resolveValue( attributes, 'aceCreativeBackgroundAuraMode' ),
+		backdropStyle: resolveValue(
+			attributes,
+			'aceCreativeBackgroundBackdropStyle'
+		),
+	};
+};
 
 const getSerializedEffectConfig = ( attributes = {}, options = {} ) => {
 	const effectConfig = getEffectConfig( attributes, options );
 
-	if ( attributes.aceCreativeBackgroundParticleShape === undefined ) {
+	if ( effectConfig.effect === ASCII_EFFECT ) {
+		if ( effectConfig.asciiSource !== 'image' ) {
+			delete effectConfig.asciiImageUrl;
+			delete effectConfig.asciiImageWidth;
+			delete effectConfig.asciiImageHeight;
+		}
+
+		if ( effectConfig.asciiSource !== 'ascii-art' ) {
+			delete effectConfig.asciiCustomText;
+		}
+
+		return effectConfig;
+	}
+
+	if ( effectConfig.effect !== FLUID_EFFECT ) {
+		return effectConfig;
+	}
+
+	if (
+		effectConfig.particleShape ===
+		ATTRIBUTE_DEFINITIONS.aceCreativeBackgroundParticleShape.default
+	) {
 		delete effectConfig.particleShape;
 	}
 
-	if ( attributes.aceCreativeBackgroundParticleSpread === undefined ) {
+	if (
+		effectConfig.particleSpread ===
+		ATTRIBUTE_DEFINITIONS.aceCreativeBackgroundParticleSpread.default
+	) {
 		delete effectConfig.particleSpread;
 	}
 
-	if ( attributes.aceCreativeBackgroundFlowJitter === undefined ) {
+	if (
+		effectConfig.flowJitter ===
+		ATTRIBUTE_DEFINITIONS.aceCreativeBackgroundFlowJitter.default
+	) {
 		delete effectConfig.flowJitter;
 	}
 
 	return effectConfig;
 };
+
+const renderEffectMarkup = ( effect ) => (
+	<>
+		{ effect === FLUID_EFFECT && (
+			<canvas className="artistic-creative__canvas" aria-hidden="true" />
+		) }
+		{ effect === ASCII_EFFECT && (
+			<pre className="artistic-creative__ascii" aria-hidden="true" />
+		) }
+		<div
+			className="artistic-creative__status"
+			data-artistic-fluid-status
+			aria-live="polite"
+		/>
+	</>
+);
 
 const getOverlayStyle = ( attributes = {} ) => ( {
 	backgroundColor:
@@ -633,8 +1260,21 @@ const getOverlayStyle = ( attributes = {} ) => ( {
 		ATTRIBUTE_DEFINITIONS.aceCreativeOverlayOpacity.default,
 } );
 
-const getLayerStyle = ( attributes = {}, includeFallback = false ) => {
-	if ( ! includeFallback && attributes.aceCreativeBackgroundColor === undefined ) {
+const getLayerStyle = (
+	attributes = {},
+	includeFallback = false,
+	effect = ''
+) => {
+	if ( effect === ASCII_EFFECT ) {
+		return {
+			backgroundColor: resolveBackgroundColor( attributes ),
+		};
+	}
+
+	if (
+		attributes.aceCreativeBackgroundColor === undefined &&
+		! includeFallback
+	) {
 		return undefined;
 	}
 
@@ -653,7 +1293,8 @@ const splitWrapperClasses = ( className = '' ) => {
 		.forEach( ( currentClassName ) => {
 			if (
 				currentClassName.startsWith( 'is-layout-' ) ||
-				currentClassName.startsWith( 'is-content-justification-' )
+				currentClassName.startsWith( 'is-content-justification-' ) ||
+				currentClassName.startsWith( 'wp-container-' )
 			) {
 				innerClasses.push( currentClassName );
 				return;
@@ -665,6 +1306,72 @@ const splitWrapperClasses = ( className = '' ) => {
 	return {
 		outerClassName: outerClasses.join( ' ' ),
 		innerClassName: [ ...new Set( innerClasses ) ].join( ' ' ),
+	};
+};
+
+const getDefaultLayoutConfig = ( attributes = {} ) => {
+	const layout = attributes?.layout;
+
+	if ( layout && typeof layout === 'object' ) {
+		return layout;
+	}
+
+	return {
+		type: 'constrained',
+	};
+};
+
+const getInnerLayoutProps = ( blockProps = {}, attributes = {} ) => {
+	const layoutClasses = ( blockProps.className || '' )
+		.split( /\s+/ )
+		.filter(
+			( currentClassName ) =>
+				currentClassName &&
+				( currentClassName.startsWith( 'is-layout-' ) ||
+					currentClassName.startsWith( 'is-content-justification-' ) ||
+					currentClassName.startsWith( 'wp-container-' ) )
+		);
+	const defaultLayout = getDefaultLayoutConfig( attributes );
+	const layoutType =
+		layoutClasses.find( ( currentClassName ) =>
+			currentClassName.startsWith( 'is-layout-' )
+		) || ! defaultLayout?.type
+			? null
+			: `is-layout-${ defaultLayout.type }`;
+	const blockBaseClass = ( blockProps.className || '' )
+		.split( /\s+/ )
+		.find( ( currentClassName ) =>
+			currentClassName.startsWith( 'wp-block-' )
+		);
+	const layoutStyleEntries = Object.entries( blockProps.style || {} ).filter(
+		( [ key ] ) =>
+			key.startsWith( '--wp--style--block-gap' ) ||
+			key.startsWith( '--wp--custom--gap' ) ||
+			key === 'justifyContent' ||
+			key === 'flexWrap' ||
+			key === 'columnGap' ||
+			key === 'rowGap'
+	);
+
+	return {
+		className: [
+			'artistic-creative__inner-container',
+			layoutType,
+			layoutType && blockBaseClass
+				? `${ blockBaseClass }-${ layoutType }`
+				: null,
+			...layoutClasses,
+		]
+			.filter( Boolean )
+			.join( ' ' ),
+		...( layoutStyleEntries.length
+			? { style: Object.fromEntries( layoutStyleEntries ) }
+			: {} ),
+		...( blockProps[ 'data-layout' ]
+			? { 'data-layout': blockProps[ 'data-layout' ] }
+			: defaultLayout
+				? { 'data-layout': JSON.stringify( defaultLayout ) }
+				: {} ),
 	};
 };
 
@@ -686,14 +1393,9 @@ const EditorBackgroundLayer = ( props = {} ) => {
 				ref={ previewRef }
 				className="artistic-creative__layer artistic-creative__layer--editor"
 				aria-hidden="true"
-				style={ getLayerStyle( attributes, true ) }
+				style={ getLayerStyle( attributes, true, effectConfig.effect ) }
 			>
-				<canvas className="artistic-creative__canvas" />
-				<div
-					className="artistic-creative__status"
-					data-artistic-fluid-status
-					aria-live="polite"
-				/>
+				{ renderEffectMarkup( effectConfig.effect ) }
 			</div>
 		);
 	}
@@ -702,7 +1404,7 @@ const EditorBackgroundLayer = ( props = {} ) => {
 		<div
 			className="artistic-creative__layer artistic-creative__layer--placeholder"
 			aria-hidden="true"
-			style={ getLayerStyle( attributes, true ) }
+			style={ getLayerStyle( attributes, true, effectConfig.effect ) }
 		>
 			<div className="artistic-creative__placeholder">
 				{ editorMode === 'preview'
@@ -729,26 +1431,31 @@ const CreativeBlockEdit = ( props = {} ) => {
 	const [ editorMode, setEditorMode ] = useState( 'preview' );
 	const [ colorPalette = [] ] = useSettings( 'color.palette' );
 	const previewRef = useRef( null );
-	const fluidPreviewRef = useRef( null );
+	const effectPreviewRef = useRef( null );
+	const childInteractivityRef = useRef( null );
+	const blockRef = useRef( null );
 	const [ resizeListener, { height, width } ] = useResizeObserver();
 	const effectConfig = getEffectConfig( attributes, {
 		includeBackgroundColor: true,
 	} );
 	const effectConfigSignature = JSON.stringify( effectConfig );
+	const childInteractivitySignature = JSON.stringify(
+		getChildInteractivityValues( attributes )
+	);
 	const hasPreviewRuntime =
-		typeof window.ArtisticCreationEnvironmentFluid === 'function';
+		typeof getRuntimeFactory( effectConfig.effect ) === 'function';
+	const isAsciiEffect = effectConfig.effect === ASCII_EFFECT;
+	const isFluidEffect = effectConfig.effect === FLUID_EFFECT;
 	const currentMinHeight = getMinHeightValue( attributes );
 	const rawBlockProps = useBlockProps( {
-		className: `${ getOuterClassName(
-			attributes
-		) } block-library-cover__resize-container`,
+		ref: blockRef,
+		className: getOuterClassName( attributes ),
 		'data-artistic-creative-effect': effectConfig.effect || '',
+		...getBlockDataAttributes( attributes ),
 		style: getEditorBlockStyle( attributes ),
 	} );
 	const innerBlocksProps = useInnerBlocksProps(
-		{
-			className: 'artistic-creative__inner-container',
-		},
+		getInnerLayoutProps( rawBlockProps, attributes ),
 		{
 			renderAppender: InnerBlocks.ButtonBlockAppender,
 		}
@@ -777,6 +1484,29 @@ const CreativeBlockEdit = ( props = {} ) => {
 			...presetValues,
 		} );
 	};
+	const setAsciiImage = ( media ) => {
+		const mediaUrl =
+			media?.url ||
+			media?.sizes?.full?.url ||
+			media?.media_details?.sizes?.full?.source_url ||
+			'';
+
+		setAttributes( {
+			aceCreativeAsciiImageUrl: mediaUrl,
+			aceCreativeAsciiImageId: media?.id,
+			aceCreativeAsciiImageWidth:
+				media?.width || media?.media_details?.width || undefined,
+			aceCreativeAsciiImageHeight:
+				media?.height || media?.media_details?.height || undefined,
+		} );
+	};
+	const clearAsciiImage = () =>
+		setAttributes( {
+			aceCreativeAsciiImageUrl: '',
+			aceCreativeAsciiImageId: undefined,
+			aceCreativeAsciiImageWidth: undefined,
+			aceCreativeAsciiImageHeight: undefined,
+		} );
 
 	const setBlockMinHeight = ( nextHeight ) => {
 		const currentStyle = attributes.style || {};
@@ -805,16 +1535,26 @@ const CreativeBlockEdit = ( props = {} ) => {
 			! hasPreviewRuntime ||
 			! previewRef.current
 		) {
-			if ( fluidPreviewRef.current?.destroy ) {
-				fluidPreviewRef.current.destroy();
+			if ( effectPreviewRef.current?.destroy ) {
+				effectPreviewRef.current.destroy();
 			}
 
-			fluidPreviewRef.current = null;
+			effectPreviewRef.current = null;
 			return;
 		}
 
-		if ( ! fluidPreviewRef.current ) {
-			fluidPreviewRef.current = window.ArtisticCreationEnvironmentFluid(
+		if (
+			effectPreviewRef.current?.destroy &&
+			effectPreviewRef.current.__aceEffect !== effectConfig.effect
+		) {
+			effectPreviewRef.current.destroy();
+			effectPreviewRef.current = null;
+		}
+
+		const runtimeFactory = getRuntimeFactory( effectConfig.effect );
+
+		if ( ! effectPreviewRef.current && runtimeFactory ) {
+			effectPreviewRef.current = runtimeFactory(
 				previewRef.current,
 				effectConfig,
 				{
@@ -822,25 +1562,67 @@ const CreativeBlockEdit = ( props = {} ) => {
 					auraSource: previewRef.current.parentElement,
 				}
 			);
+
+			if ( effectPreviewRef.current ) {
+				effectPreviewRef.current.__aceEffect = effectConfig.effect;
+			}
 		}
 
-		fluidPreviewRef.current?.setPaused?.( false );
-		fluidPreviewRef.current?.applyConfig?.( effectConfig );
+		effectPreviewRef.current?.setPaused?.( false );
+		effectPreviewRef.current?.applyConfig?.( effectConfig );
 	}, [ editorMode, effectConfig.effect, effectConfigSignature, hasPreviewRuntime ] );
 
 	useEffect( () => {
+		if ( childInteractivityRef.current?.destroy ) {
+			childInteractivityRef.current.destroy();
+		}
+
+		childInteractivityRef.current = null;
+
+		if ( ! blockRef.current ) {
+			return undefined;
+		}
+
+		childInteractivityRef.current = createCreativeChildInteractivity(
+			blockRef.current
+		);
+
 		return () => {
-			if ( fluidPreviewRef.current?.destroy ) {
-				fluidPreviewRef.current.destroy();
+			if ( childInteractivityRef.current?.destroy ) {
+				childInteractivityRef.current.destroy();
 			}
 
-			fluidPreviewRef.current = null;
+			childInteractivityRef.current = null;
+		};
+	}, [ childInteractivitySignature ] );
+
+	useEffect( () => {
+		return () => {
+			if ( effectPreviewRef.current?.destroy ) {
+				effectPreviewRef.current.destroy();
+			}
+
+			effectPreviewRef.current = null;
+			if ( childInteractivityRef.current?.destroy ) {
+				childInteractivityRef.current.destroy();
+			}
+			childInteractivityRef.current = null;
 		};
 	}, [] );
 
 	return (
 		<Fragment>
 			<BlockControls>
+				<ToolbarGroup>
+					<BlockVerticalAlignmentToolbar
+						value={ attributes.aceCreativeVerticalAlign || 'top' }
+						onChange={ ( value ) =>
+							setAttributes( {
+								aceCreativeVerticalAlign: value || 'top',
+							} )
+						}
+					/>
+				</ToolbarGroup>
 				<ToolbarGroup>
 					<ToolbarButton
 						icon="visibility"
@@ -871,16 +1653,6 @@ const CreativeBlockEdit = ( props = {} ) => {
 							'artistic-creation-environment'
 						) }
 					/>
-					<SelectControl
-						label={ __( 'Fluid preset', 'artistic-creation-environment' ) }
-						value={ attributes.aceCreativeBackgroundPreset || 'custom' }
-						options={ FLUID_PRESET_OPTIONS }
-						onChange={ applyFluidPreset }
-						help={ __(
-							'Applies a curated combination of motion, bloom, colour, and particle-shape settings as a starting point.',
-							'artistic-creation-environment'
-						) }
-					/>
 
 					{ attributes.aceCreativeBackgroundEffect === 'site-default' &&
 						! defaultEffect && (
@@ -891,6 +1663,216 @@ const CreativeBlockEdit = ( props = {} ) => {
 								) }
 							</Notice>
 						) }
+
+					{ isFluidEffect && (
+						<>
+							<SelectControl
+								label={ __( 'Fluid preset', 'artistic-creation-environment' ) }
+								value={ attributes.aceCreativeBackgroundPreset || 'custom' }
+								options={ FLUID_PRESET_OPTIONS }
+								onChange={ applyFluidPreset }
+								help={ __(
+									'Applies a curated combination of motion, bloom, colour, and particle-shape settings as a starting point.',
+									'artistic-creation-environment'
+								) }
+							/>
+						</>
+					) }
+
+					{ isAsciiEffect && (
+						<>
+							<SelectControl
+								label={ __( 'ASCII source', 'artistic-creation-environment' ) }
+								value={ effectConfig.asciiSource || 'world-map' }
+								options={ ASCII_SOURCE_OPTIONS }
+								onChange={ setValue( 'aceCreativeAsciiSource' ) }
+								help={ __(
+									'Use the built-in world map, paste your own ASCII art, or turn a media-library image into ASCII.',
+									'artistic-creation-environment'
+								) }
+							/>
+							{ effectConfig.asciiSource === 'ascii-art' && (
+								<TextareaControl
+									label={ __(
+										'ASCII art',
+										'artistic-creation-environment'
+									) }
+									value={ attributes.aceCreativeAsciiCustomText || '' }
+									onChange={ setValue( 'aceCreativeAsciiCustomText' ) }
+									help={ __(
+										'Paste line-based ASCII art here to render it directly without image conversion.',
+										'artistic-creation-environment'
+									) }
+									rows={ 10 }
+								/>
+							) }
+							{ effectConfig.asciiSource === 'image' && (
+								<div className="artistic-creative__media-picker">
+									{ attributes.aceCreativeAsciiImageUrl && (
+										<img
+											className="artistic-creative__media-preview"
+											src={ attributes.aceCreativeAsciiImageUrl }
+											alt=""
+										/>
+									) }
+									<MediaUploadCheck>
+										<MediaUpload
+											onSelect={ setAsciiImage }
+											allowedTypes={ [ 'image' ] }
+											value={ attributes.aceCreativeAsciiImageId }
+											render={ ( { open } ) => (
+												<div className="artistic-creative__media-actions">
+													<Button
+														variant="secondary"
+														onClick={ open }
+													>
+														{ attributes.aceCreativeAsciiImageUrl
+															? __(
+																	'Replace image',
+																	'artistic-creation-environment'
+															  )
+															: __(
+																	'Choose image',
+																	'artistic-creation-environment'
+															  ) }
+													</Button>
+													{ attributes.aceCreativeAsciiImageUrl && (
+														<Button
+															variant="tertiary"
+															onClick={ clearAsciiImage }
+														>
+															{ __(
+																'Remove image',
+																'artistic-creation-environment'
+															) }
+														</Button>
+													) }
+												</div>
+											) }
+										/>
+									</MediaUploadCheck>
+									<p className="components-base-control__help">
+										{ __(
+											'Choose an image from the media library to use as the ASCII reference source. The runtime now keeps the generated ASCII locked to the source aspect ratio.',
+											'artistic-creation-environment'
+										) }
+									</p>
+								</div>
+							) }
+							{ effectConfig.asciiSource !== 'ascii-art' && (
+								<>
+									<SelectControl
+										label={ __(
+											'Character set',
+											'artistic-creation-environment'
+										) }
+										value={ effectConfig.asciiCharacterSet || 'atlas' }
+										options={ ASCII_CHARACTER_SET_OPTIONS }
+										onChange={ setValue(
+											'aceCreativeAsciiCharacterSet'
+										) }
+									/>
+									<RangeControl
+										label={ __( 'Density', 'artistic-creation-environment' ) }
+										min={ 48 }
+										max={ 240 }
+										step={ 1 }
+										value={ effectConfig.asciiDensity }
+										onChange={ setValue( 'aceCreativeAsciiDensity' ) }
+									/>
+								</>
+							) }
+							<RangeControl
+								label={ __( 'Font size', 'artistic-creation-environment' ) }
+								min={ 7 }
+								max={ 18 }
+								step={ 1 }
+								value={ effectConfig.asciiFontSize }
+								onChange={ setValue( 'aceCreativeAsciiFontSize' ) }
+							/>
+							<p>{ __( 'Tint colour', 'artistic-creation-environment' ) }</p>
+							<ColorPalette
+								colors={ themeColors }
+								value={
+									effectConfig.asciiTintColor ||
+									DEFAULT_ASCII_TINT_COLOR
+								}
+								onChange={ ( value ) =>
+									setAttributes( {
+										aceCreativeAsciiTintColor:
+											value || DEFAULT_ASCII_TINT_COLOR,
+									} )
+								}
+								clearable={ false }
+							/>
+							<p>{ __( 'Background colour', 'artistic-creation-environment' ) }</p>
+							<ColorPalette
+								colors={ themeColors }
+								value={ attributes.aceCreativeBackgroundColor }
+								onChange={ ( value ) =>
+									setAttributes( {
+										aceCreativeBackgroundColor: value,
+									} )
+								}
+								clearable={ true }
+							/>
+							<RangeControl
+								label={ __( 'Glow', 'artistic-creation-environment' ) }
+								min={ 0 }
+								max={ 1 }
+								step={ 0.01 }
+								value={ effectConfig.asciiGlow }
+								onChange={ setValue( 'aceCreativeAsciiGlow' ) }
+							/>
+							{ effectConfig.asciiSource !== 'ascii-art' && (
+								<RangeControl
+									label={ __( 'Contrast', 'artistic-creation-environment' ) }
+									min={ 0.4 }
+									max={ 2.6 }
+									step={ 0.01 }
+									value={ effectConfig.asciiContrast }
+									onChange={ setValue( 'aceCreativeAsciiContrast' ) }
+								/>
+							) }
+							<RangeControl
+								label={ __( 'Motion', 'artistic-creation-environment' ) }
+								min={ 0 }
+								max={ 2 }
+								step={ 0.01 }
+								value={ effectConfig.asciiMotion }
+								onChange={ setValue( 'aceCreativeAsciiMotion' ) }
+							/>
+							<RangeControl
+								label={ __(
+									'Hover / pointer interaction',
+									'artistic-creation-environment'
+								) }
+								min={ 0 }
+								max={ 2 }
+								step={ 0.01 }
+								value={ effectConfig.asciiInteraction }
+								onChange={ setValue( 'aceCreativeAsciiInteraction' ) }
+							/>
+							<RangeControl
+								label={ __( 'Noise shimmer', 'artistic-creation-environment' ) }
+								min={ 0 }
+								max={ 0.4 }
+								step={ 0.01 }
+								value={ effectConfig.asciiNoise }
+								onChange={ setValue( 'aceCreativeAsciiNoise' ) }
+							/>
+							{ effectConfig.asciiSource !== 'ascii-art' && (
+								<ToggleControl
+									label={ __( 'Invert glyphs', 'artistic-creation-environment' ) }
+									checked={ !! effectConfig.asciiInvert }
+									onChange={ setValue( 'aceCreativeAsciiInvert' ) }
+								/>
+							) }
+						</>
+					) }
+
+					{ isFluidEffect && (
+						<>
 
 					<SelectControl
 						label={ __( 'Quality', 'artistic-creation-environment' ) }
@@ -1008,12 +1990,12 @@ const CreativeBlockEdit = ( props = {} ) => {
 					<RangeControl
 						label={ __( 'Autoplay easing', 'artistic-creation-environment' ) }
 						min={ 0.5 }
-						max={ 2.5 }
+						max={ 5 }
 						step={ 0.1 }
 						value={ effectConfig.autoplayEasing }
 						onChange={ setValue( 'aceCreativeBackgroundAutoplayEasing' ) }
 						help={ __(
-							'Higher values make the autoplay splashes ramp in more gradually before they fully bloom.',
+							'Higher values make autoplay splashes take longer to grow and ramp in more gradually before they fully bloom.',
 							'artistic-creation-environment'
 						) }
 					/>
@@ -1162,6 +2144,27 @@ const CreativeBlockEdit = ( props = {} ) => {
 						value={ effectConfig.sunraysWeight }
 						onChange={ setValue( 'aceCreativeBackgroundSunraysWeight' ) }
 					/>
+						</>
+					) }
+				</PanelBody>
+				<PanelBody
+					title={ __( 'Layout', 'artistic-creation-environment' ) }
+					initialOpen={ false }
+				>
+					<SelectControl
+						label={ __( 'Vertical alignment', 'artistic-creation-environment' ) }
+						value={ attributes.aceCreativeVerticalAlign || 'top' }
+						options={ VERTICAL_ALIGN_OPTIONS }
+						onChange={ ( value ) =>
+							setAttributes( {
+								aceCreativeVerticalAlign: value || 'top',
+							} )
+						}
+						help={ __(
+							'Align child blocks to the top, middle, or bottom of the Creative block height.',
+							'artistic-creation-environment'
+						) }
+					/>
 				</PanelBody>
 				<PanelBody
 					title={ __( 'Overlay', 'artistic-creation-environment' ) }
@@ -1217,7 +2220,7 @@ const CreativeBlockEdit = ( props = {} ) => {
 						onChange={ setValue( 'aceCreativeContentBlendMode' ) }
 					/>
 					<RangeControl
-						label={ __( 'Backdrop blur', 'artistic-creation-environment' ) }
+						label={ __( 'Blend softness', 'artistic-creation-environment' ) }
 						min={ 0 }
 						max={ 30 }
 						step={ 1 }
@@ -1225,7 +2228,7 @@ const CreativeBlockEdit = ( props = {} ) => {
 						onChange={ setValue( 'aceCreativeContentBackdropBlur' ) }
 					/>
 					<RangeControl
-						label={ __( 'Glass surface opacity', 'artistic-creation-environment' ) }
+						label={ __( 'Text tint strength', 'artistic-creation-environment' ) }
 						min={ 0 }
 						max={ 0.4 }
 						step={ 0.01 }
@@ -1233,7 +2236,7 @@ const CreativeBlockEdit = ( props = {} ) => {
 						onChange={ setValue( 'aceCreativeContentSurfaceOpacity' ) }
 					/>
 					<RangeControl
-						label={ __( 'Border glow opacity', 'artistic-creation-environment' ) }
+						label={ __( 'Glow intensity', 'artistic-creation-environment' ) }
 						min={ 0 }
 						max={ 0.5 }
 						step={ 0.01 }
@@ -1245,7 +2248,7 @@ const CreativeBlockEdit = ( props = {} ) => {
 						checked={ !! getContentPresetValues( attributes ).invert }
 						onChange={ setValue( 'aceCreativeContentInvert' ) }
 					/>
-					<p>{ __( 'Surface tint', 'artistic-creation-environment' ) }</p>
+					<p>{ __( 'Text tint', 'artistic-creation-environment' ) }</p>
 					<ColorPalette
 						colors={ themeColors }
 						value={
@@ -1261,51 +2264,127 @@ const CreativeBlockEdit = ( props = {} ) => {
 						clearable={ false }
 					/>
 				</PanelBody>
+				<PanelBody
+					title={ __(
+						'Child interactivity',
+						'artistic-creation-environment'
+					) }
+					initialOpen={ false }
+				>
+					<SelectControl
+						label={ __(
+							'Interaction mode',
+							'artistic-creation-environment'
+						) }
+						value={ getChildInteractivityValues( attributes ).mode }
+						options={ CHILD_INTERACTION_MODE_OPTIONS }
+						onChange={ setValue( 'aceCreativeChildInteractionMode' ) }
+						help={ __(
+							'Animate direct child blocks as the cursor moves through the Creative block.',
+							'artistic-creation-environment'
+						) }
+					/>
+					{ getChildInteractivityValues( attributes ).mode !== 'none' && (
+						<>
+							<RangeControl
+								label={ __(
+									'Strength',
+									'artistic-creation-environment'
+								) }
+								min={ 0.1 }
+								max={ 2 }
+								step={ 0.01 }
+								value={ getChildInteractivityValues( attributes ).intensity }
+								onChange={ setValue(
+									'aceCreativeChildInteractionIntensity'
+								) }
+							/>
+							<RangeControl
+								label={ __( 'Radius', 'artistic-creation-environment' ) }
+								min={ 80 }
+								max={ 520 }
+								step={ 1 }
+								value={ getChildInteractivityValues( attributes ).radius }
+								onChange={ setValue(
+									'aceCreativeChildInteractionRadius'
+								) }
+							/>
+							<RangeControl
+								label={ __(
+									'Travel distance',
+									'artistic-creation-environment'
+								) }
+								min={ 8 }
+								max={ 120 }
+								step={ 1 }
+								value={ getChildInteractivityValues( attributes ).depth }
+								onChange={ setValue(
+									'aceCreativeChildInteractionDepth'
+								) }
+							/>
+							<RangeControl
+								label={ __(
+									'Idle motion',
+									'artistic-creation-environment'
+								) }
+								min={ 0 }
+								max={ 1 }
+								step={ 0.01 }
+								value={ getChildInteractivityValues( attributes ).idle }
+								onChange={ setValue(
+									'aceCreativeChildInteractionIdle'
+								) }
+							/>
+						</>
+					) }
+				</PanelBody>
 			</InspectorControls>
 
-			<ResizableBox
-				{ ...rawBlockProps }
-				enable={ RESIZABLE_BOX_ENABLE_OPTION }
-				minHeight={ MIN_BLOCK_HEIGHT }
-				onResizeStart={ ( _event, _direction, element ) => {
-					toggleSelection?.( false );
-					setBlockMinHeight( element.clientHeight );
-				} }
-				onResize={ ( _event, _direction, element ) => {
-					setBlockMinHeight( element.clientHeight );
-				} }
-				onResizeStop={ ( _event, _direction, element ) => {
-					setBlockMinHeight( element.clientHeight );
-					toggleSelection?.( true );
-				} }
-				showHandle={
-					isSelected && ! attributes?.style?.dimensions?.aspectRatio
-				}
-				size={ {
-					height: resizableBoxHeight,
-					width: width || 'auto',
-				} }
-				__experimentalShowTooltip
-				__experimentalTooltipProps={ {
-					axis: 'y',
-					position: 'bottom',
-				} }
-			>
-				{ resizeListener }
-				<EditorBackgroundLayer
-					attributes={ attributes }
-					effectConfig={ effectConfig }
-					editorMode={ editorMode }
-					hasPreviewRuntime={ hasPreviewRuntime }
-					previewRef={ previewRef }
-				/>
-				<span
-					className="artistic-creative__overlay"
-					aria-hidden="true"
-					style={ getOverlayStyle( attributes ) }
-				/>
-				<div { ...innerBlocksProps } />
-			</ResizableBox>
+			<div { ...rawBlockProps }>
+				<ResizableBox
+					className="block-library-cover__resize-container artistic-creative__resize-container"
+					enable={ RESIZABLE_BOX_ENABLE_OPTION }
+					minHeight={ MIN_BLOCK_HEIGHT }
+					onResizeStart={ ( _event, _direction, element ) => {
+						toggleSelection?.( false );
+						setBlockMinHeight( element.clientHeight );
+					} }
+					onResize={ ( _event, _direction, element ) => {
+						setBlockMinHeight( element.clientHeight );
+					} }
+					onResizeStop={ ( _event, _direction, element ) => {
+						setBlockMinHeight( element.clientHeight );
+						toggleSelection?.( true );
+					} }
+					showHandle={
+						isSelected && ! attributes?.style?.dimensions?.aspectRatio
+					}
+					size={ {
+						height: resizableBoxHeight,
+						width: width || 'auto',
+					} }
+					__experimentalShowTooltip
+					__experimentalTooltipProps={ {
+						axis: 'y',
+						position: 'bottom',
+					} }
+				>
+					{ resizeListener }
+					<EditorBackgroundLayer
+						attributes={ attributes }
+						effectConfig={ effectConfig }
+						editorMode={ editorMode }
+						hasPreviewRuntime={ hasPreviewRuntime }
+						previewRef={ previewRef }
+					/>
+					<span
+						className="artistic-creative__overlay"
+						aria-hidden="true"
+						style={ getOverlayStyle( attributes ) }
+					/>
+					<div { ...innerBlocksProps } />
+				</ResizableBox>
+			</div>
 		</Fragment>
 	);
 };
@@ -1316,11 +2395,12 @@ const CreativeBlockSave = ( props = {} ) => {
 	const rawBlockProps = useBlockProps.save( {
 		className: getOuterClassName( attributes ),
 		'data-artistic-creative-effect': effectConfig.effect || '',
+		...getBlockDataAttributes( attributes ),
 		style: getSavedBlockStyle( attributes ),
 	} );
-	const innerBlocksProps = useInnerBlocksProps.save( {
-		className: 'artistic-creative__inner-container',
-	} );
+	const innerBlocksProps = useInnerBlocksProps.save(
+		getInnerLayoutProps( rawBlockProps, attributes )
+	);
 
 	return (
 		<div { ...rawBlockProps }>
@@ -1329,10 +2409,9 @@ const CreativeBlockSave = ( props = {} ) => {
 					className="artistic-creative__layer"
 					aria-hidden="true"
 					data-artistic-config={ JSON.stringify( effectConfig ) }
-					style={ getLayerStyle( attributes ) }
+					style={ getLayerStyle( attributes, false, effectConfig.effect ) }
 				>
-					<canvas className="artistic-creative__canvas" />
-					<div className="artistic-creative__status" data-artistic-fluid-status aria-live="polite" />
+					{ renderEffectMarkup( effectConfig.effect ) }
 				</div>
 			) }
 				<span
@@ -1392,10 +2471,9 @@ const CreativeBlockDeprecatedCurrentSave = ( props = {} ) => {
 					className="artistic-creative__layer"
 					aria-hidden="true"
 					data-artistic-config={ JSON.stringify( effectConfig ) }
-					style={ getLayerStyle( attributes ) }
+					style={ getLayerStyle( attributes, false, effectConfig.effect ) }
 				>
-					<canvas className="artistic-creative__canvas" />
-					<div className="artistic-creative__status" data-artistic-fluid-status aria-live="polite" />
+					{ renderEffectMarkup( effectConfig.effect ) }
 				</div>
 			) }
 			<span
@@ -1433,12 +2511,7 @@ const CreativeBlockDeprecatedSplitWrapperSave = ( props = {} ) => {
 					aria-hidden="true"
 					data-artistic-config={ JSON.stringify( effectConfig ) }
 				>
-					<canvas className="artistic-creative__canvas" />
-					<div
-						className="artistic-creative__status"
-						data-artistic-fluid-status
-						aria-live="polite"
-					/>
+					{ renderEffectMarkup( effectConfig.effect ) }
 				</div>
 			) }
 			<span
@@ -1467,12 +2540,7 @@ const CreativeBlockDeprecatedDirectSave = ( props = {} ) => {
 					aria-hidden="true"
 					data-artistic-config={ JSON.stringify( effectConfig ) }
 				>
-					<canvas className="artistic-creative__canvas" />
-					<div
-						className="artistic-creative__status"
-						data-artistic-fluid-status
-						aria-live="polite"
-					/>
+					{ renderEffectMarkup( effectConfig.effect ) }
 				</div>
 			) }
 			<span
@@ -1484,6 +2552,225 @@ const CreativeBlockDeprecatedDirectSave = ( props = {} ) => {
 		</div>
 	);
 };
+
+const CreativeChildContentEffectsControls = ( props = {} ) => {
+	const { clientId, isSelected, name } = props;
+	const [ colorPalette = [] ] = useSettings( 'color.palette' );
+	const { updateBlockAttributes } = useDispatch( 'core/block-editor' );
+	const creativeParent = useSelect(
+		( select ) => {
+			const blockEditorSelect = select( 'core/block-editor' );
+			const parentIds = blockEditorSelect.getBlockParents( clientId ) || [];
+			const creativeParentId = [ ...parentIds ]
+				.reverse()
+				.find( ( parentId ) => {
+					const parentBlock = blockEditorSelect.getBlock( parentId );
+					return (
+						parentBlock?.name === 'artistic-creation-environment/creative'
+					);
+				} );
+
+			if ( ! creativeParentId ) {
+				return null;
+			}
+
+			const creativeParentBlock =
+				blockEditorSelect.getBlock( creativeParentId );
+
+			return {
+				clientId: creativeParentId,
+				attributes: creativeParentBlock?.attributes || {},
+			};
+		},
+		[ clientId ]
+	);
+
+	if ( ! isSelected || ! creativeParent?.clientId ) {
+		return null;
+	}
+
+	const creativeAttributes = creativeParent.attributes || {};
+	const contentValues = getContentPresetValues( creativeAttributes );
+	const themeColors =
+		Array.isArray( colorPalette ) && colorPalette.length
+			? colorPalette
+			: undefined;
+	const setCreativeAttributes = ( nextAttributes ) =>
+		updateBlockAttributes( creativeParent.clientId, nextAttributes );
+	const setCreativeValue = ( key ) => ( value ) =>
+		setCreativeAttributes( { [ key ]: value } );
+	const childInteractivityValues =
+		getChildInteractivityValues( creativeAttributes );
+	const applyCreativeContentPreset = ( presetKey ) => {
+		const presetValues = CONTENT_EFFECT_PRESETS[ presetKey ] || {};
+
+		setCreativeAttributes( {
+			aceCreativeContentEffectPreset: presetKey,
+			...presetValues,
+		} );
+	};
+
+	return (
+		<InspectorControls>
+			<PanelBody
+				title={ __( 'Creative interactions', 'artistic-creation-environment' ) }
+				initialOpen={ false }
+			>
+				<p className="components-base-control__help">
+					{ __(
+						'These controls update the parent Creative block and animate its direct child blocks together.',
+						'artistic-creation-environment'
+					) }
+				</p>
+				<SelectControl
+					label={ __( 'Interaction mode', 'artistic-creation-environment' ) }
+					value={ childInteractivityValues.mode }
+					options={ CHILD_INTERACTION_MODE_OPTIONS }
+					onChange={ setCreativeValue( 'aceCreativeChildInteractionMode' ) }
+				/>
+				{ childInteractivityValues.mode !== 'none' && (
+					<>
+						<RangeControl
+							label={ __( 'Strength', 'artistic-creation-environment' ) }
+							min={ 0.1 }
+							max={ 2 }
+							step={ 0.01 }
+							value={ childInteractivityValues.intensity }
+							onChange={ setCreativeValue(
+								'aceCreativeChildInteractionIntensity'
+							) }
+						/>
+						<RangeControl
+							label={ __( 'Radius', 'artistic-creation-environment' ) }
+							min={ 80 }
+							max={ 520 }
+							step={ 1 }
+							value={ childInteractivityValues.radius }
+							onChange={ setCreativeValue(
+								'aceCreativeChildInteractionRadius'
+							) }
+						/>
+						<RangeControl
+							label={ __(
+								'Travel distance',
+								'artistic-creation-environment'
+							) }
+							min={ 8 }
+							max={ 120 }
+							step={ 1 }
+							value={ childInteractivityValues.depth }
+							onChange={ setCreativeValue(
+								'aceCreativeChildInteractionDepth'
+							) }
+						/>
+						<RangeControl
+							label={ __( 'Idle motion', 'artistic-creation-environment' ) }
+							min={ 0 }
+							max={ 1 }
+							step={ 0.01 }
+							value={ childInteractivityValues.idle }
+							onChange={ setCreativeValue(
+								'aceCreativeChildInteractionIdle'
+							) }
+						/>
+					</>
+				) }
+			</PanelBody>
+			{ CHILD_CONTENT_EFFECT_BLOCKS.includes( name ) && (
+			<PanelBody
+				title={ __( 'Creative text effects', 'artistic-creation-environment' ) }
+				initialOpen={ false }
+			>
+				<p className="components-base-control__help">
+					{ __(
+						'These controls update the parent Creative block and affect supported child text blocks inside it.',
+						'artistic-creation-environment'
+					) }
+				</p>
+				<SelectControl
+					label={ __( 'Text treatment preset', 'artistic-creation-environment' ) }
+					value={ creativeAttributes.aceCreativeContentEffectPreset || 'none' }
+					options={ CONTENT_EFFECT_PRESET_OPTIONS }
+					onChange={ applyCreativeContentPreset }
+				/>
+				<SelectControl
+					label={ __( 'Blend mode', 'artistic-creation-environment' ) }
+					value={ contentValues.blendMode || 'normal' }
+					options={ BLEND_MODE_OPTIONS }
+					onChange={ setCreativeValue( 'aceCreativeContentBlendMode' ) }
+				/>
+				<RangeControl
+					label={ __( 'Blend softness', 'artistic-creation-environment' ) }
+					min={ 0 }
+					max={ 30 }
+					step={ 1 }
+					value={ contentValues.backdropBlur }
+					onChange={ setCreativeValue( 'aceCreativeContentBackdropBlur' ) }
+				/>
+				<RangeControl
+					label={ __( 'Text tint strength', 'artistic-creation-environment' ) }
+					min={ 0 }
+					max={ 0.4 }
+					step={ 0.01 }
+					value={ contentValues.surfaceOpacity }
+					onChange={ setCreativeValue( 'aceCreativeContentSurfaceOpacity' ) }
+				/>
+				<RangeControl
+					label={ __( 'Glow intensity', 'artistic-creation-environment' ) }
+					min={ 0 }
+					max={ 0.5 }
+					step={ 0.01 }
+					value={ contentValues.borderOpacity }
+					onChange={ setCreativeValue( 'aceCreativeContentBorderOpacity' ) }
+				/>
+				<ToggleControl
+					label={ __( 'Invert treatment', 'artistic-creation-environment' ) }
+					checked={ !! contentValues.invert }
+					onChange={ setCreativeValue( 'aceCreativeContentInvert' ) }
+				/>
+				<p>{ __( 'Text tint', 'artistic-creation-environment' ) }</p>
+				<ColorPalette
+					colors={ themeColors }
+					value={
+						contentValues.surfaceColor || DEFAULT_CONTENT_SURFACE_COLOR
+					}
+					onChange={ ( value ) =>
+						setCreativeAttributes( {
+							aceCreativeContentSurfaceColor:
+								value || DEFAULT_CONTENT_SURFACE_COLOR,
+						} )
+					}
+					clearable={ false }
+				/>
+			</PanelBody>
+			) }
+		</InspectorControls>
+	);
+};
+
+const withCreativeChildContentEffectsControls = createHigherOrderComponent(
+	( BlockEdit ) => {
+		return ( props ) => {
+			if ( props.name === 'artistic-creation-environment/creative' ) {
+				return <BlockEdit { ...props } />;
+			}
+
+			return (
+				<>
+					<BlockEdit { ...props } />
+					<CreativeChildContentEffectsControls { ...props } />
+				</>
+			);
+		};
+	},
+	'withCreativeChildContentEffectsControls'
+);
+
+addFilter(
+	'editor.BlockEdit',
+	'artistic-creation-environment/child-content-effects-controls',
+	withCreativeChildContentEffectsControls
+);
 
 registerBlockType( 'artistic-creation-environment/creative', {
 	apiVersion: 3,
