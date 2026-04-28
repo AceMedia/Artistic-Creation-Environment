@@ -62,14 +62,45 @@
 		return block.querySelector('.artistic-creative__inner-container') || null;
 	}
 
+	function isLeafInteractiveElement(node, block) {
+		if (
+			!node ||
+			node.nodeType !== 1 ||
+			node.closest('.wp-block-artistic-creation-environment-creative') !== block
+		) {
+			return false;
+		}
+
+		if (
+			node.matches(
+				'.artistic-creative__inner-container, .artistic-creative__layer, .artistic-creative__overlay'
+			)
+		) {
+			return false;
+		}
+
+		if (
+			node.matches(
+				'h1, h2, h3, h4, h5, h6, p, figure, blockquote, ul, ol, pre, table, .wp-block-button, .wp-block-buttons, .wp-block-image, .wp-block-heading, .wp-block-quote, .wp-block-pullquote, .wp-block-list, .wp-block-table, .wp-block-preformatted, .wp-block-code'
+			)
+		) {
+			return true;
+		}
+
+		if ( ! hasWordPressBlockClass( node ) ) {
+			return false;
+		}
+
+		return !node.matches(
+			'.wp-block-columns, .wp-block-column, .wp-block-group, .wp-block-cover, .wp-block-media-text, .wp-block-artistic-creation-environment-creative'
+		);
+	}
+
 	function getInteractiveTargets(block, targetsContainer) {
 		var candidates = Array.prototype.filter.call(
 			targetsContainer.querySelectorAll('*'),
 			function (node) {
-				return (
-					hasWordPressBlockClass(node) &&
-					node.closest('.wp-block-artistic-creation-environment-creative') === block
-				);
+				return isLeafInteractiveElement(node, block);
 			}
 		);
 		var leafTargets = candidates.filter(function (node) {
