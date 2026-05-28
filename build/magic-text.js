@@ -60,11 +60,28 @@
 		inferno: [ '#dc2626', '#f97316', '#fbbf24', '#fef3c7', '#ef4444', '#ffffff' ],
 	};
 
-	// Detect which artistic button type (if any) applies to el.
-	function getArtisticBtnType( el ) {
+	// Maps text-format class names to their type keys.
+	var TEXT_CLASS_TYPE_MAP = {
+		'ace-aurora-text':  'aurora',
+		'ace-neon-text':    'neon',
+		'ace-prism-text':   'prism',
+		'ace-plasma-text':  'plasma',
+		'ace-inferno-text': 'inferno',
+	};
+
+	// Detect which artistic type applies to el (button or text span).
+	function getArtisticType( el ) {
 		var cls = el.className || '';
+		// Button class pattern
 		var match = cls.match( /\bace-artistic-btn--(\w+)\b/ );
-		return match ? match[ 1 ] : null;
+		if ( match ) return match[ 1 ];
+		// Text span class pattern
+		for ( var textCls in TEXT_CLASS_TYPE_MAP ) {
+			if ( el.classList && el.classList.contains( textCls ) ) {
+				return TEXT_CLASS_TYPE_MAP[ textCls ];
+			}
+		}
+		return null;
 	}
 
 	// Extract hex colours from the element's CSS variables / classes.
@@ -72,7 +89,7 @@
 	function getElementColors( el ) {
 		if ( el._aceColors ) return el._aceColors;
 		var colors = [];
-		var type = getArtisticBtnType( el );
+		var type = getArtisticType( el );
 
 		if ( type && type !== 'magic' ) {
 			if ( type === 'neon' ) {
@@ -139,12 +156,21 @@
 		}
 	}
 
+	var ARTISTIC_TEXT_SELECTOR = [
+		'.ace-magic-text',
+		'.ace-aurora-text',
+		'.ace-neon-text',
+		'.ace-prism-text',
+		'.ace-plasma-text',
+		'.ace-inferno-text',
+	].join( ', ' );
+
 	// Ambient sparkles: periodically spawn at random positions within every visible
-	// .ace-magic-text element or .ace-artistic-btn--sparkles button, regardless of mouse position.
+	// artistic text span or .ace-artistic-btn--sparkles button, regardless of mouse position.
 	function startAmbient() {
 		if ( _ambientInterval ) return;
 		_ambientInterval = setInterval( function () {
-			var els = document.querySelectorAll( '.ace-magic-text, .ace-artistic-btn--sparkles' );
+			var els = document.querySelectorAll( ARTISTIC_TEXT_SELECTOR + ', .ace-artistic-btn--sparkles' );
 			if ( ! els.length ) {
 				clearInterval( _ambientInterval );
 				_ambientInterval = null;
@@ -166,7 +192,8 @@
 	}
 
 	function attachListeners( root ) {
-		( root || document ).querySelectorAll( '.ace-magic-text' ).forEach( function ( el ) {
+		// Bind mouse-move sparkles to all artistic text spans.
+		( root || document ).querySelectorAll( ARTISTIC_TEXT_SELECTOR ).forEach( function ( el ) {
 			if ( el._aceMagicBound ) return;
 			el._aceMagicBound = true;
 			el.addEventListener( 'mousemove', function ( e ) {
@@ -196,13 +223,12 @@
 				mutations.forEach( function ( m ) {
 					m.addedNodes.forEach( function ( node ) {
 						if ( node.nodeType !== 1 ) return;
-						if (
-							node.classList &&
-							(
-								node.classList.contains( 'ace-magic-text' ) ||
-								node.classList.contains( 'ace-artistic-btn--sparkles' )
-							)
-						) {
+						var isArtisticNode =
+							node.classList.contains( 'ace-artistic-btn--sparkles' ) ||
+							[ 'ace-magic-text', 'ace-aurora-text', 'ace-neon-text',
+							  'ace-prism-text', 'ace-plasma-text', 'ace-inferno-text',
+							].some( function ( c ) { return node.classList.contains( c ); } );
+						if ( node.classList && isArtisticNode ) {
 							attachListeners( node.parentElement );
 						} else if ( node.querySelectorAll ) {
 							attachListeners( node );

@@ -468,6 +468,172 @@ background-position: 170% center, 100% center;
 	outline-offset: 1px;
 }
 
+// Type row in the unified artistic text popover
+.ace-artistic-text-type-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-bottom: 10px;
+}
+
+.ace-artistic-text-type-btn {
+	padding: 3px 8px;
+	border: 1px solid #ccc;
+	border-radius: 3px;
+	background: #fff;
+	cursor: pointer;
+	font-size: 12px;
+	line-height: 1.4;
+
+	&:hover {
+		border-color: #007cba;
+	}
+
+	&.is-active {
+		background: #007cba;
+		border-color: #007cba;
+		color: #fff;
+	}
+}
+
+// ─── Artistic text inline format fills ───────────────────────────────────────
+
+// Aurora text — slow northern-lights gradient drift
+.ace-aurora-text {
+	background: linear-gradient(
+		135deg,
+		#4ade80,
+		#818cf8,
+		#34d399,
+		#a78bfa,
+		#4ade80
+	);
+	background-size: 200% auto;
+	-webkit-background-clip: text;
+	background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: ace-aurora-text-shift 6s ease-in-out infinite alternate;
+	display: inline;
+}
+
+@keyframes ace-aurora-text-shift {
+	0% {
+		background-position: 0% center;
+	}
+	100% {
+		background-position: 100% center;
+	}
+}
+
+// Neon text — pulsing coloured glow
+.ace-neon-text {
+	color: var(--ace-neon-color, #00f5ff) !important;
+	-webkit-text-fill-color: var(--ace-neon-color, #00f5ff) !important;
+	text-shadow:
+		0 0 6px var(--ace-neon-color, #00f5ff),
+		0 0 16px var(--ace-neon-color, #00f5ff);
+	animation: ace-neon-text-pulse 2.5s ease-in-out infinite alternate;
+	display: inline;
+}
+
+@keyframes ace-neon-text-pulse {
+	0% {
+		text-shadow:
+			0 0 4px var(--ace-neon-color, #00f5ff),
+			0 0 10px var(--ace-neon-color, #00f5ff);
+	}
+	100% {
+		text-shadow:
+			0 0 10px var(--ace-neon-color, #00f5ff),
+			0 0 26px var(--ace-neon-color, #00f5ff),
+			0 0 42px var(--ace-neon-color, #00f5ff);
+	}
+}
+
+// Prism text — continuous hue-rotating full-spectrum gradient
+.ace-prism-text {
+	background: linear-gradient(
+		90deg,
+		#ff0080,
+		#ff8c00,
+		#ffe600,
+		#00e5ff,
+		#0070ff,
+		#a550ff,
+		#ff0080
+	);
+	background-size: 200% auto;
+	-webkit-background-clip: text;
+	background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: ace-prism-text-rotate 3s linear infinite;
+	display: inline;
+}
+
+@keyframes ace-prism-text-rotate {
+	0% {
+		filter: hue-rotate(0deg);
+		background-position: 0% center;
+	}
+	100% {
+		filter: hue-rotate(360deg);
+		background-position: 100% center;
+	}
+}
+
+// Plasma text — pulsing purple/pink energy
+.ace-plasma-text {
+	background: linear-gradient(90deg, #7c3aed, #db2777, #a78bfa, #e879f9, #7c3aed);
+	background-size: 200% auto;
+	-webkit-background-clip: text;
+	background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: ace-plasma-text-drift 4s ease-in-out infinite alternate;
+	display: inline;
+}
+
+@keyframes ace-plasma-text-drift {
+	0% {
+		background-position: 0% center;
+		filter: hue-rotate(0deg);
+	}
+	100% {
+		background-position: 100% center;
+		filter: hue-rotate(25deg);
+	}
+}
+
+// Inferno text — rising fire colours
+.ace-inferno-text {
+	background: linear-gradient(
+		90deg,
+		#7f1d1d,
+		#dc2626,
+		#f97316,
+		#fbbf24,
+		#fef3c7,
+		#fbbf24,
+		#f97316,
+		#dc2626,
+		#7f1d1d
+	);
+	background-size: 200% auto;
+	-webkit-background-clip: text;
+	background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: ace-inferno-text-flame 2s ease-in-out infinite alternate;
+	display: inline;
+}
+
+@keyframes ace-inferno-text-flame {
+	0% {
+		background-position: 0% center;
+	}
+	100% {
+		background-position: 100% center;
+	}
+}
+
 // ─── Artistic button backgrounds ─────────────────────────────────────────────
 
 // Magic — rainbow shimmer (new class + backward-compat alias)

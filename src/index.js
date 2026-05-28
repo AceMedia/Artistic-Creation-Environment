@@ -3260,12 +3260,37 @@ isActive={ isActive }
 },
 } );
 
-// ─── Magic Text inline format ─────────────────────────────────────────────────
+// ─── Artistic Text inline formats ────────────────────────────────────────────
 
-const MAGIC_FORMAT_TYPE = 'ace/magic-text';
+const MAGIC_FORMAT_TYPE   = 'ace/magic-text';
+const AURORA_FORMAT_TYPE  = 'ace/aurora-text';
+const NEON_FORMAT_TYPE    = 'ace/neon-text';
+const PRISM_FORMAT_TYPE   = 'ace/prism-text';
+const PLASMA_FORMAT_TYPE  = 'ace/plasma-text';
+const INFERNO_FORMAT_TYPE = 'ace/inferno-text';
+
 const MAGIC_RAINBOW = 'linear-gradient(90deg,#ff6b6b,#ffd93d,#6bcb77,#4d96ff,#a78bfa,#ff6b6b)';
 
-const magicIcon = (
+const NEON_COLOR_OPTIONS = [
+	{ name: __( 'Cyan', 'artistic-creation-environment' ), color: '#00f5ff' },
+	{ name: __( 'Pink', 'artistic-creation-environment' ), color: '#ff00aa' },
+	{ name: __( 'Green', 'artistic-creation-environment' ), color: '#39ff14' },
+	{ name: __( 'Gold', 'artistic-creation-environment' ), color: '#ffd700' },
+	{ name: __( 'Violet', 'artistic-creation-environment' ), color: '#bf5fff' },
+];
+
+const ARTISTIC_TEXT_TYPES = [
+	{ value: 'magic',   label: '✨ Magic',   formatType: MAGIC_FORMAT_TYPE,   hasGradient: true  },
+	{ value: 'aurora',  label: '🌌 Aurora',  formatType: AURORA_FORMAT_TYPE                      },
+	{ value: 'neon',    label: '⚡ Neon',    formatType: NEON_FORMAT_TYPE,    hasNeonColor: true  },
+	{ value: 'prism',   label: '🌈 Prism',   formatType: PRISM_FORMAT_TYPE                       },
+	{ value: 'plasma',  label: '⚗️ Plasma',  formatType: PLASMA_FORMAT_TYPE                      },
+	{ value: 'inferno', label: '🔥 Inferno', formatType: INFERNO_FORMAT_TYPE                     },
+];
+
+const ALL_ARTISTIC_FORMAT_TYPES = ARTISTIC_TEXT_TYPES.map( ( t ) => t.formatType );
+
+const artisticTextIcon = (
 	<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
 		<path d="M12 2 L13 7 L18 6 L14 9.5 L16 14.5 L12 11.5 L8 14.5 L10 9.5 L6 6 L11 7 Z" />
 		<path d="M5 18 L5.6 20 L7.5 19.5 L6 21 L7.5 22.5 L5.6 22 L5 24 L4.4 22 L2.5 22.5 L4 21 L2.5 19.5 L4.4 20 Z" />
@@ -3273,67 +3298,160 @@ const magicIcon = (
 	</svg>
 );
 
-function MagicTextButton( { isActive, onChange, value } ) {
+function ArtisticTextButton( { value, onChange } ) {
 	const [ isOpen, setIsOpen ] = useState( false );
+	const [ selectedType, setSelectedType ] = useState( null );
 	const [ themeGradients ] = useSettings( 'color.gradients' );
 
+	// Detect which (if any) artistic format is active at the current selection.
+	const activeFormat = value?.activeFormats?.find( ( f ) =>
+		ALL_ARTISTIC_FORMAT_TYPES.includes( f.type )
+	);
+	const isActive = !! activeFormat;
+	const activeTypeConfig = ARTISTIC_TEXT_TYPES.find(
+		( t ) => t.formatType === activeFormat?.type
+	);
+
+	const currentType = selectedType ?? activeTypeConfig?.value ?? 'magic';
+	const currentConfig = ARTISTIC_TEXT_TYPES.find( ( t ) => t.value === currentType );
+
 	const gradients = [
-		{
-			name: __( 'Rainbow (default)', 'artistic-creation-environment' ),
-			gradient: MAGIC_RAINBOW,
-		},
+		{ name: __( 'Rainbow (default)', 'artistic-creation-environment' ), gradient: MAGIC_RAINBOW },
 		...( themeGradients || [] ),
 	];
+
+	const activeMagicGradient =
+		activeFormat?.type === MAGIC_FORMAT_TYPE
+			? ( activeFormat?.attributes?.style || '' )
+				.replace( '--ace-magic-gradient:', '' )
+				.replace( ';', '' )
+				.trim()
+			: '';
+
+	const activeNeonColor =
+		activeFormat?.type === NEON_FORMAT_TYPE
+			? ( activeFormat?.attributes?.style || '' )
+				.replace( '--ace-neon-color:', '' )
+				.replace( ';', '' )
+				.trim()
+			: '';
+
+	function removeAllArtistic( v ) {
+		return ALL_ARTISTIC_FORMAT_TYPES.reduce(
+			( acc, ft ) => removeFormat( acc, ft ),
+			v
+		);
+	}
+
+	function applyArtistic( formatType, attributes = {} ) {
+		const cleaned = removeAllArtistic( value );
+		onChange( applyFormat( cleaned, { type: formatType, attributes } ) );
+		setIsOpen( false );
+		setSelectedType( null );
+	}
+
+	function handleRemove() {
+		onChange( removeAllArtistic( value ) );
+		setIsOpen( false );
+		setSelectedType( null );
+	}
 
 	return (
 		<>
 			<RichTextToolbarButton
-				icon={ magicIcon }
-				title={ __( 'Magic text', 'artistic-creation-environment' ) }
+				icon={ artisticTextIcon }
+				title={ __( 'Artistic text', 'artistic-creation-environment' ) }
 				onClick={ () => setIsOpen( ( v ) => ! v ) }
 				isActive={ isActive }
 			/>
 			{ isOpen && (
 				<Popover
 					className="ace-magic-gradient-popover"
-					onClose={ () => setIsOpen( false ) }
+					onClose={ () => { setIsOpen( false ); setSelectedType( null ); } }
 					focusOnMount="firstElement"
 					placement="bottom-start"
 				>
 					<div className="ace-magic-gradient-picker">
-						<p className="ace-magic-gradient-picker__label">
-							{ __( 'Gradient', 'artistic-creation-environment' ) }
-						</p>
-						<div className="ace-magic-gradient-picker__swatches">
-							{ gradients.map( ( { name, gradient } ) => (
+						<div className="ace-artistic-text-type-row">
+							{ ARTISTIC_TEXT_TYPES.map( ( t ) => (
 								<button
-									key={ gradient }
-									className="ace-magic-gradient-picker__swatch"
-									title={ name }
-									style={ { background: gradient } }
-									onClick={ () => {
-										onChange(
-											applyFormat( value, {
-												type: MAGIC_FORMAT_TYPE,
-												attributes: {
-													style: `--ace-magic-gradient:${ gradient };`,
-												},
-											} )
-										);
-										setIsOpen( false );
-									} }
-								/>
+									key={ t.value }
+									className={ [
+										'ace-artistic-text-type-btn',
+										currentType === t.value ? 'is-active' : '',
+									].filter( Boolean ).join( ' ' ) }
+									title={ t.label }
+									onClick={ () => setSelectedType( t.value ) }
+								>
+									{ t.label }
+								</button>
 							) ) }
 						</div>
-						{ isActive && (
+
+						{ currentConfig?.hasGradient && (
+							<>
+								<p className="ace-magic-gradient-picker__label">
+									{ __( 'Gradient', 'artistic-creation-environment' ) }
+								</p>
+								<div className="ace-magic-gradient-picker__swatches">
+									{ gradients.map( ( { name, gradient } ) => (
+										<button
+											key={ gradient }
+											className={ [
+												'ace-magic-gradient-picker__swatch',
+												activeMagicGradient === gradient ? 'is-active' : '',
+											].filter( Boolean ).join( ' ' ) }
+											title={ name }
+											style={ { background: gradient } }
+											onClick={ () =>
+												applyArtistic( MAGIC_FORMAT_TYPE, {
+													style: `--ace-magic-gradient:${ gradient };`,
+												} )
+											}
+										/>
+									) ) }
+								</div>
+							</>
+						) }
+
+						{ currentConfig?.hasNeonColor && (
+							<>
+								<p className="ace-magic-gradient-picker__label">
+									{ __( 'Glow colour', 'artistic-creation-environment' ) }
+								</p>
+								<div className="ace-magic-gradient-picker__swatches">
+									{ NEON_COLOR_OPTIONS.map( ( { name, color } ) => (
+										<button
+											key={ color }
+											className={ [
+												'ace-magic-gradient-picker__swatch',
+												activeNeonColor === color ? 'is-active' : '',
+											].filter( Boolean ).join( ' ' ) }
+											title={ name }
+											style={ { background: color, boxShadow: `0 0 8px ${ color }` } }
+											onClick={ () =>
+												applyArtistic( NEON_FORMAT_TYPE, {
+													style: `--ace-neon-color:${ color };`,
+												} )
+											}
+										/>
+									) ) }
+								</div>
+							</>
+						) }
+
+						{ ! currentConfig?.hasGradient && ! currentConfig?.hasNeonColor && (
 							<Button
-								isDestructive
-								variant="link"
-								onClick={ () => {
-									onChange( removeFormat( value, MAGIC_FORMAT_TYPE ) );
-									setIsOpen( false );
-								} }
+								variant="primary"
+								onClick={ () => applyArtistic( currentConfig.formatType ) }
+								style={ { margin: '8px 0' } }
 							>
+								{ __( 'Apply', 'artistic-creation-environment' ) }
+							</Button>
+						) }
+
+						{ isActive && (
+							<Button isDestructive variant="link" onClick={ handleRemove }>
 								{ __( 'Remove', 'artistic-creation-environment' ) }
 							</Button>
 						) }
@@ -3344,14 +3462,45 @@ function MagicTextButton( { isActive, onChange, value } ) {
 	);
 }
 
+// ace/magic-text hosts the toolbar button for all artistic text formats.
+// The other format types are registered for className/tagName only (no edit UI).
 registerFormatType( MAGIC_FORMAT_TYPE, {
-	title: __( 'Magic text', 'artistic-creation-environment' ),
+	title: __( 'Artistic text', 'artistic-creation-environment' ),
 	tagName: 'span',
 	className: 'ace-magic-text',
-	attributes: {
-		style: 'style',
-	},
-	edit: MagicTextButton,
+	attributes: { style: 'style' },
+	edit: ArtisticTextButton,
+} );
+
+registerFormatType( AURORA_FORMAT_TYPE, {
+	title: __( 'Aurora text', 'artistic-creation-environment' ),
+	tagName: 'span',
+	className: 'ace-aurora-text',
+} );
+
+registerFormatType( NEON_FORMAT_TYPE, {
+	title: __( 'Neon text', 'artistic-creation-environment' ),
+	tagName: 'span',
+	className: 'ace-neon-text',
+	attributes: { style: 'style' },
+} );
+
+registerFormatType( PRISM_FORMAT_TYPE, {
+	title: __( 'Prism text', 'artistic-creation-environment' ),
+	tagName: 'span',
+	className: 'ace-prism-text',
+} );
+
+registerFormatType( PLASMA_FORMAT_TYPE, {
+	title: __( 'Plasma text', 'artistic-creation-environment' ),
+	tagName: 'span',
+	className: 'ace-plasma-text',
+} );
+
+registerFormatType( INFERNO_FORMAT_TYPE, {
+	title: __( 'Inferno text', 'artistic-creation-environment' ),
+	tagName: 'span',
+	className: 'ace-inferno-text',
 } );
 
 // ─── Artistic Button Background ───────────────────────────────────────────────
@@ -3364,14 +3513,6 @@ const ARTISTIC_BTN_TYPES = [
 	{ label: __( '🌈 Prism', 'artistic-creation-environment' ), value: 'prism' },
 	{ label: __( '⚗️ Plasma', 'artistic-creation-environment' ), value: 'plasma' },
 	{ label: __( '🔥 Inferno', 'artistic-creation-environment' ), value: 'inferno' },
-];
-
-const NEON_COLOR_OPTIONS = [
-	{ name: __( 'Cyan', 'artistic-creation-environment' ), color: '#00f5ff' },
-	{ name: __( 'Pink', 'artistic-creation-environment' ), color: '#ff00aa' },
-	{ name: __( 'Green', 'artistic-creation-environment' ), color: '#39ff14' },
-	{ name: __( 'Gold', 'artistic-creation-environment' ), color: '#ffd700' },
-	{ name: __( 'Violet', 'artistic-creation-environment' ), color: '#bf5fff' },
 ];
 
 addFilter(
