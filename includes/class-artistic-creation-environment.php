@@ -316,6 +316,12 @@ class Artistic_Creation_Environment {
 			wp_enqueue_script( 'artistic-creation-environment-magic' );
 		}
 
+		// Button WebGL effects need to run in the editor so that
+		// artistic button backgrounds preview correctly in the block editor.
+		if ( wp_script_is( 'artistic-creation-environment-btn-effects', 'registered' ) ) {
+			wp_enqueue_script( 'artistic-creation-environment-btn-effects' );
+		}
+
 		$this->enqueue_shared_style();
 	}
 
@@ -325,10 +331,11 @@ class Artistic_Creation_Environment {
 	 * @return void
 	 */
 	public function enqueue_block_assets() {
-		if ( is_admin() ) {
-			return;
-		}
-
+		// In WP 6.3+ the block editor renders blocks inside an iframe.
+		// enqueue_block_assets fires in that iframe context too, so we must
+		// NOT bail on is_admin() — doing so prevents effects from loading
+		// inside the editor canvas.  WordPress deduplicates handles, so
+		// enqueuing the same script here AND in enqueue_editor_assets is safe.
 		$this->enqueue_frontend_assets();
 	}
 
