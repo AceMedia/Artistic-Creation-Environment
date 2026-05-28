@@ -673,160 +673,64 @@ background-position: 170% center, 100% center;
 	}
 }
 
-// Aurora — slow northern-lights gradient drift
+// WebGL button types — canvas fills the link, text floats above
+// Aurora / Neon / Prism / Plasma / Inferno all share this hosting pattern
+.ace-artistic-btn--aurora,
+.ace-artistic-btn--neon,
+.ace-artistic-btn--prism,
+.ace-artistic-btn--plasma,
+.ace-artistic-btn--inferno {
+	.wp-block-button__link {
+		position: relative !important;
+		overflow: hidden !important;
+		isolation: isolate !important;
+		background: #000 !important;
+		color: #fff !important;
+		border-color: transparent !important;
+	}
+}
+
+// Aurora — subtle coloured text to complement the WebGL light bands
 .ace-artistic-btn--aurora .wp-block-button__link {
-	background: linear-gradient(
-		135deg,
-		#0d1b2a 0%,
-		#1a472a 20%,
-		#6b2fa0 45%,
-		#1b5e9f 65%,
-		#1a472a 82%,
-		#0d1b2a 100%
-	) !important;
-	background-size: 300% 300% !important;
-	animation: ace-btn-aurora 8s ease-in-out infinite alternate !important;
-	border-color: rgba(74, 222, 128, 0.28) !important;
 	color: rgba(220, 255, 235, 0.95) !important;
 	text-shadow: 0 0 14px rgba(74, 222, 128, 0.45) !important;
 }
 
-@keyframes ace-btn-aurora {
-	0% {
-		background-position: 0% 30%;
-	}
-	50% {
-		background-position: 100% 70%;
-	}
-	100% {
-		background-position: 50% 100%;
-	}
-}
-
-// Neon — dark base with glowing coloured border
+// Neon — glowing text to complement the topographic WebGL lines
 .ace-artistic-btn--neon .wp-block-button__link {
-	background: #050916 !important;
-	border: 2px solid var(--ace-neon-color, #00f5ff) !important;
-	box-shadow:
-		0 0 6px var(--ace-neon-color, #00f5ff),
-		0 0 18px var(--ace-neon-color, #00f5ff),
-		inset 0 0 10px rgba(0, 245, 255, 0.07) !important;
-	color: var(--ace-neon-color, #00f5ff) !important;
-	text-shadow: 0 0 8px var(--ace-neon-color, #00f5ff) !important;
-	animation: ace-btn-neon-pulse 2.5s ease-in-out infinite alternate !important;
+	color: #e0f7ff !important;
+	text-shadow: 0 0 10px rgba(0, 245, 255, 0.7) !important;
 }
 
-@keyframes ace-btn-neon-pulse {
-	0% {
-		box-shadow:
-			0 0 4px var(--ace-neon-color, #00f5ff),
-			0 0 10px var(--ace-neon-color, #00f5ff),
-			inset 0 0 6px rgba(0, 245, 255, 0.04);
-		text-shadow: 0 0 5px var(--ace-neon-color, #00f5ff);
-	}
-	100% {
-		box-shadow:
-			0 0 12px var(--ace-neon-color, #00f5ff),
-			0 0 32px var(--ace-neon-color, #00f5ff),
-			0 0 52px var(--ace-neon-color, #00f5ff),
-			inset 0 0 14px rgba(0, 245, 255, 0.1);
-		text-shadow: 0 0 14px var(--ace-neon-color, #00f5ff);
-	}
-}
-
-// Prism — holographic hue-rotating gradient
+// Prism — crisp white text over the chromatic dispersion canvas
 .ace-artistic-btn--prism .wp-block-button__link {
-	background: linear-gradient(
-		135deg,
-		#ff0080 0%,
-		#ff8c00 18%,
-		#ffe600 36%,
-		#00e5ff 54%,
-		#0070ff 72%,
-		#a550ff 90%,
-		#ff0080 100%
-	) !important;
-	background-size: 300% 300% !important;
-	animation: ace-btn-prism 5s linear infinite !important;
-	border-color: transparent !important;
 	color: #fff !important;
-	text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45) !important;
+	text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6) !important;
 }
 
-@keyframes ace-btn-prism {
-	0% {
-		background-position: 0% 50%;
-		filter: hue-rotate(0deg) saturate(1.3) brightness(1.06);
-	}
-	100% {
-		background-position: 100% 50%;
-		filter: hue-rotate(360deg) saturate(1.3) brightness(1.06);
-	}
-}
-
-// Plasma — pulsing radial energy fields
+// Plasma — soft violet text over the sine-wave interference canvas
 .ace-artistic-btn--plasma .wp-block-button__link {
-	background:
-		radial-gradient(
-			ellipse at 20% 50%,
-			rgba(124, 58, 237, 0.92) 0%,
-			transparent 55%
-		),
-		radial-gradient(
-			ellipse at 80% 50%,
-			rgba(219, 39, 119, 0.92) 0%,
-			transparent 55%
-		),
-		radial-gradient(
-			ellipse at 50% 0%,
-			rgba(29, 78, 216, 0.8) 0%,
-			transparent 60%
-		),
-		#0f0a1e !important;
-	background-size: 200% 200% !important;
-	animation: ace-btn-plasma 3.5s ease-in-out infinite alternate !important;
-	border-color: rgba(167, 139, 250, 0.35) !important;
 	color: #e9d5ff !important;
 	text-shadow: 0 0 10px rgba(167, 139, 250, 0.5) !important;
 }
 
-@keyframes ace-btn-plasma {
-	0% {
-		background-position: 0% 50%;
-		filter: hue-rotate(0deg) brightness(1);
-	}
-	100% {
-		background-position: 100% 50%;
-		filter: hue-rotate(25deg) brightness(1.08);
-	}
-}
-
-// Inferno — rising fire gradient
+// Inferno — warm text over the FBM fire canvas
 .ace-artistic-btn--inferno .wp-block-button__link {
-	background: linear-gradient(
-		0deg,
-		#7f1d1d 0%,
-		#dc2626 20%,
-		#f97316 50%,
-		#fbbf24 80%,
-		#fef3c7 100%
-	) !important;
-	background-size: 100% 250% !important;
-	animation: ace-btn-inferno 2s ease-in-out infinite alternate !important;
-	border-color: transparent !important;
 	color: #fff7ed !important;
 	text-shadow:
 		0 1px 6px rgba(0, 0, 0, 0.4),
 		0 0 12px rgba(251, 191, 36, 0.3) !important;
 }
 
-@keyframes ace-btn-inferno {
-	0% {
-		background-position: center 100%;
-	}
-	100% {
-		background-position: center 0%;
-	}
+// The WebGL canvas injected by ace-btn-effects.js
+.ace-btn-gl-canvas {
+	position: absolute !important;
+	inset: 0 !important;
+	width: 100% !important;
+	height: 100% !important;
+	border-radius: inherit !important;
+	pointer-events: none !important;
+	z-index: -1 !important;
 }
 
 .ace-magic-gradient-picker {

@@ -3515,6 +3515,18 @@ const ARTISTIC_BTN_TYPES = [
 	{ label: __( '🔥 Inferno', 'artistic-creation-environment' ), value: 'inferno' },
 ];
 
+const AURORA_PALETTE_OPTIONS = [
+	{ label: __( 'Aurora', 'artistic-creation-environment' ), value: 'aurora' },
+	{ label: __( 'Sunset', 'artistic-creation-environment' ), value: 'sunset' },
+	{ label: __( 'Deep Space', 'artistic-creation-environment' ), value: 'deepspace' },
+];
+
+const NEON_SCHEME_OPTIONS = [
+	{ label: __( 'Cyan', 'artistic-creation-environment' ), value: 'cyan' },
+	{ label: __( 'Magenta', 'artistic-creation-environment' ), value: 'magenta' },
+	{ label: __( 'Gold', 'artistic-creation-environment' ), value: 'gold' },
+];
+
 addFilter(
 	'blocks.registerBlockType',
 	'artistic-creation-environment/artistic-button-attributes',
@@ -3528,7 +3540,9 @@ addFilter(
 				aceMagicBg: { type: 'string', default: '' },
 				aceMagicBgSparkles: { type: 'boolean', default: false },
 				aceArtisticBtnType: { type: 'string', default: '' },
-				aceNeonColor: { type: 'string', default: '#00f5ff' },
+				aceNeonColor: { type: 'string', default: '#00f5ff' }, // kept for text format compat
+				aceAuroraPalette: { type: 'string', default: 'aurora' },
+				aceNeonScheme: { type: 'string', default: 'cyan' },
 			},
 		};
 	}
@@ -3537,38 +3551,47 @@ addFilter(
 // Derive the CSS classes to apply for a given set of button attributes.
 function getArtisticBtnClasses( attributes ) {
 	const { aceMagicBg, aceMagicBgSparkles, aceArtisticBtnType } = attributes;
-	// Backward compat: old blocks with aceMagicBg but no aceArtisticBtnType
 	const type = aceArtisticBtnType || ( aceMagicBg ? 'magic' : '' );
 	if ( ! type ) return '';
 	return [
 		'ace-artistic-btn',
 		`ace-artistic-btn--${ type }`,
-		aceMagicBgSparkles ? 'ace-artistic-btn--sparkles' : '',
+		// Sparkles only apply to magic type
+		type === 'magic' && aceMagicBgSparkles ? 'ace-artistic-btn--sparkles' : '',
 	]
 		.filter( Boolean )
 		.join( ' ' );
 }
 
-// Derive the inline CSS-variable style for a given set of button attributes.
+// CSS-variable style — only magic uses a CSS var; WebGL types use data attrs instead.
 function getArtisticBtnStyle( attributes ) {
-	const { aceMagicBg, aceArtisticBtnType, aceNeonColor } = attributes;
+	const { aceMagicBg, aceArtisticBtnType } = attributes;
 	const type = aceArtisticBtnType || ( aceMagicBg ? 'magic' : '' );
-	const style = {};
 	if ( type === 'magic' && aceMagicBg ) {
-		style[ '--ace-magic-gradient' ] = aceMagicBg;
+		return { '--ace-magic-gradient': aceMagicBg };
 	}
-	if ( type === 'neon' && aceNeonColor ) {
-		style[ '--ace-neon-color' ] = aceNeonColor;
+	return {};
+}
+
+// Data attributes consumed by ace-btn-effects.js on the frontend.
+function getArtisticBtnDataAttrs( attributes ) {
+	const { aceArtisticBtnType, aceMagicBg, aceAuroraPalette, aceNeonScheme } = attributes;
+	const type = aceArtisticBtnType || ( aceMagicBg ? 'magic' : '' );
+	const attrs = {};
+	if ( type === 'aurora' && aceAuroraPalette ) {
+		attrs[ 'data-ace-aurora-palette' ] = aceAuroraPalette;
 	}
-	return style;
+	if ( type === 'neon' && aceNeonScheme ) {
+		attrs[ 'data-ace-neon-scheme' ] = aceNeonScheme;
+	}
+	return attrs;
 }
 
 function ArtisticButtonControls( { attributes, setAttributes } ) {
 	const [ themeGradients ] = useSettings( 'color.gradients' );
-	const { aceMagicBg, aceMagicBgSparkles, aceArtisticBtnType, aceNeonColor } =
+	const { aceMagicBg, aceMagicBgSparkles, aceArtisticBtnType, aceAuroraPalette, aceNeonScheme } =
 		attributes;
 
-	// Effective type handles old blocks that only set aceMagicBg
 	const effectiveType = aceArtisticBtnType || ( aceMagicBg ? 'magic' : '' );
 
 	const gradients = [
@@ -3593,7 +3616,7 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 						setAttributes( {
 							aceArtisticBtnType: v,
 							aceMagicBg: v === 'magic' ? aceMagicBg : '',
-							aceMagicBgSparkles: v ? aceMagicBgSparkles : false,
+							aceMagicBgSparkles: v === 'magic' ? aceMagicBgSparkles : false,
 						} )
 					}
 				/>
@@ -3621,45 +3644,31 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 								/>
 							) ) }
 						</div>
+						<ToggleControl
+							label={ __( 'Sparkles', 'artistic-creation-environment' ) }
+							checked={ !! aceMagicBgSparkles }
+							onChange={ ( value ) =>
+								setAttributes( { aceMagicBgSparkles: value } )
+							}
+						/>
 					</>
+				) }
+
+				{ effectiveType === 'aurora' && (
+					<SelectControl
+						label={ __( 'Palette', 'artistic-creation-environment' ) }
+						value={ aceAuroraPalette || 'aurora' }
+						options={ AURORA_PALETTE_OPTIONS }
+						onChange={ ( v ) => setAttributes( { aceAuroraPalette: v } ) }
+					/>
 				) }
 
 				{ effectiveType === 'neon' && (
-					<>
-						<p className="ace-magic-gradient-picker__label">
-							{ __( 'Glow colour', 'artistic-creation-environment' ) }
-						</p>
-						<div className="ace-magic-gradient-picker__swatches">
-							{ NEON_COLOR_OPTIONS.map( ( { name, color } ) => (
-								<button
-									key={ color }
-									className={ [
-										'ace-magic-gradient-picker__swatch',
-										aceNeonColor === color ? 'is-active' : '',
-									]
-										.filter( Boolean )
-										.join( ' ' ) }
-									title={ name }
-									style={ {
-										background: color,
-										boxShadow: `0 0 8px ${ color }`,
-									} }
-									onClick={ () =>
-										setAttributes( { aceNeonColor: color } )
-									}
-								/>
-							) ) }
-						</div>
-					</>
-				) }
-
-				{ !! effectiveType && (
-					<ToggleControl
-						label={ __( 'Sparkles', 'artistic-creation-environment' ) }
-						checked={ !! aceMagicBgSparkles }
-						onChange={ ( value ) =>
-							setAttributes( { aceMagicBgSparkles: value } )
-						}
+					<SelectControl
+						label={ __( 'Colour scheme', 'artistic-creation-environment' ) }
+						value={ aceNeonScheme || 'cyan' }
+						options={ NEON_SCHEME_OPTIONS }
+						onChange={ ( v ) => setAttributes( { aceNeonScheme: v } ) }
 					/>
 				) }
 			</PanelBody>
@@ -3705,8 +3714,10 @@ const withArtisticButtonClass = createHigherOrderComponent(
 				return <BlockListBlock { ...props } />;
 			}
 			const artStyle = getArtisticBtnStyle( attributes );
+			const dataAttrs = getArtisticBtnDataAttrs( attributes );
 			const wrapperProps = {
 				...( props.wrapperProps || {} ),
+				...dataAttrs,
 				style: {
 					...( props.wrapperProps?.style || {} ),
 					...artStyle,
@@ -3744,12 +3755,14 @@ addFilter(
 			return element;
 		}
 		const artStyle = getArtisticBtnStyle( attributes );
+		const dataAttrs = getArtisticBtnDataAttrs( attributes );
 		const existingClassName = element.props?.className || '';
 		const newClassName = `${ existingClassName } ${ extraClasses }`.trim();
 		const existingStyle = element.props?.style || {};
 		return cloneElement( element, {
 			className: newClassName,
 			style: { ...existingStyle, ...artStyle },
+			...dataAttrs,
 		} );
 	}
 );

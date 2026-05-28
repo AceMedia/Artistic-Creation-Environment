@@ -110,6 +110,7 @@ class Artistic_Creation_Environment {
 		$caustics_script_path          = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/glass-caustics.js';
 		$dust_script_path              = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/magnetic-dust.js';
 		$frontend_script_path          = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/frontend.js';
+		$button_effects_script_path    = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/ace-btn-effects.js';
 		$scramble_script_path          = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/scramble-text.js';
 		$magic_script_path             = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/magic-text.js';
 
@@ -265,6 +266,16 @@ class Artistic_Creation_Environment {
 			);
 		}
 
+		if ( file_exists( $button_effects_script_path ) ) {
+			wp_register_script(
+				'artistic-creation-environment-btn-effects',
+				ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/ace-btn-effects.js',
+				array(),
+				(string) filemtime( $button_effects_script_path ),
+				true
+			);
+		}
+
 		if ( file_exists( $scramble_script_path ) ) {
 			wp_register_script(
 				'artistic-creation-environment-scramble',
@@ -284,6 +295,7 @@ class Artistic_Creation_Environment {
 				true
 			);
 		}
+
 	}
 
 	/**
@@ -1029,6 +1041,7 @@ class Artistic_Creation_Environment {
 			'artistic-creation-environment-topo',
 			'artistic-creation-environment-caustics',
 			'artistic-creation-environment-dust',
+			'artistic-creation-environment-btn-effects',
 			'artistic-creation-environment-frontend',
 			'artistic-creation-environment-scramble',
 			'artistic-creation-environment-magic',
