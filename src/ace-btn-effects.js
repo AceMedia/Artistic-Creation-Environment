@@ -283,32 +283,380 @@
 		'  g.yz=a0.yz*x12.xz+h.yz*x12.yw;',
 		'  return 130.0*dot(m,g);',
 		'}',
-		'float fbm(vec2 p){',
-		'  float v=0.0,a=0.5;',
-		'  for(int i=0;i<5;i++){v+=a*snoise(p);p*=2.0;a*=0.5;}',
-		'  return v;',
-		'}',
 		'void main(){',
 		'  vec2 uv=gl_FragCoord.xy/u_res;',
-		'  float t=u_time*0.45;',
-		'  float heat=exp(-pow((u_pointer.x-uv.x)*4.0,2.0))*exp(-pow((u_pointer.y-uv.y)*5.0,2.0))*0.7;',
-		'  vec2 p=vec2(uv.x*2.8,uv.y*3.5-t);',
+		'  float t=u_time*0.6;',
+		'  float pd=length(vec2((u_pointer.x-uv.x)*2.5,u_pointer.y-uv.y));',
+		'  float heat=exp(-pd*pd*8.0)*0.85;',
+		'  vec2 p=vec2(uv.x*3.0,uv.y*3.5-t);',
+		'  float wx=snoise(p+vec2(0.0,0.3));',
+		'  float wy=snoise(p+vec2(3.7,1.1));',
+		'  vec2 wp=p+vec2(wx,wy)*0.65;',
 		'  float turb=0.0;',
-		'  turb+=0.500*abs(snoise(p));',
-		'  turb+=0.250*abs(snoise(p*2.02));',
-		'  turb+=0.125*abs(snoise(p*4.07));',
-		'  turb+=0.063*abs(snoise(p*8.13));',
-		'  float mask=pow(clamp(1.0-uv.y,0.0,1.0),1.2)*1.7+heat;',
-		'  float fire=clamp(turb*mask,0.0,1.0);',
+		'  turb+=0.500*snoise(wp);',
+		'  turb+=0.250*snoise(wp*2.03+vec2(0.8,1.5));',
+		'  turb+=0.125*abs(snoise(wp*4.1+vec2(2.2,0.9)));',
+		'  turb+=0.063*abs(snoise(wp*8.2));',
+		'  turb=turb*0.5+0.5;',
+		'  float tip1=snoise(vec2(uv.x*3.5,t*0.5))*0.18;',
+		'  float tip2=snoise(vec2(uv.x*7.0,t*1.1))*0.08;',
+		'  float yFade=clamp((1.0-uv.y)*1.45+tip1+tip2+heat*0.5,0.0,1.3);',
+		'  float fire=clamp(turb*yFade,0.0,1.0);',
 		'  vec3 col;',
-		'  if(fire<0.22)      col=mix(vec3(0.0),vec3(0.42,0.0,0.0),fire/0.22);',
-		'  else if(fire<0.44) col=mix(vec3(0.42,0.0,0.0),vec3(0.88,0.12,0.0),(fire-0.22)/0.22);',
-		'  else if(fire<0.66) col=mix(vec3(0.88,0.12,0.0),vec3(1.0,0.55,0.0),(fire-0.44)/0.22);',
-		'  else if(fire<0.85) col=mix(vec3(1.0,0.55,0.0),vec3(1.0,0.88,0.05),(fire-0.66)/0.19);',
-		'  else               col=mix(vec3(1.0,0.88,0.05),vec3(1.0,0.97,0.85),(fire-0.85)/0.15);',
-		'  gl_FragColor=vec4(col,1.0);',
+		'  if(fire<0.12)      col=mix(vec3(0.0),vec3(0.42,0.0,0.0),fire/0.12);',
+		'  else if(fire<0.32) col=mix(vec3(0.42,0.0,0.0),vec3(0.90,0.10,0.0),(fire-0.12)/0.20);',
+		'  else if(fire<0.55) col=mix(vec3(0.90,0.10,0.0),vec3(1.0,0.52,0.0),(fire-0.32)/0.23);',
+		'  else if(fire<0.74) col=mix(vec3(1.0,0.52,0.0),vec3(1.0,0.82,0.04),(fire-0.55)/0.19);',
+		'  else if(fire<0.88) col=mix(vec3(1.0,0.82,0.04),vec3(1.0,0.97,0.65),(fire-0.74)/0.14);',
+		'  else               col=mix(vec3(1.0,0.97,0.65),vec3(1.0,1.0,1.0),(fire-0.88)/0.12);',
+		'  col.b+=max(0.0,(fire-0.90)*2.0);',
+		'  gl_FragColor=vec4(clamp(col,0.0,1.0),1.0);',
 		'}',
 	].join( '\n' );
+
+
+	// ── Particle Systems ─────────────────────────────────────────────────────
+	// Each returns a destroy() function. Called from respective factory.
+
+	function createAuroraParticles( pCanvas, link, cfg ) {
+		var ctx = pCanvas.getContext( '2d' );
+		if ( ! ctx ) { return null; }
+		var PALETTES = {
+			aurora:    [ '#4ade80', '#22d3ee', '#34d399', '#6ee7b7' ],
+			sunset:    [ '#f97316', '#ec4899', '#f59e0b', '#ef4444' ],
+			deepspace: [ '#8b5cf6', '#a855f7', '#6366f1', '#c084fc' ],
+		};
+		var colors = PALETTES[ cfg.palette ] || PALETTES.aurora;
+		var particles = [];
+		function spawn() {
+			var w = pCanvas.width || 200, h = pCanvas.height || 48;
+			return { x: Math.random() * w, y: h + 10,
+				vx: ( Math.random() - 0.5 ) * 0.45, vy: -( 0.2 + Math.random() * 0.35 ),
+				life: 0, maxLife: 80 + Math.random() * 60,
+				size: 4 + Math.random() * 8, stretch: 2.5 + Math.random() * 2.5,
+				rot: Math.random() * Math.PI,
+				color: colors[ Math.floor( Math.random() * colors.length ) ] };
+		}
+		for ( var i = 0; i < 6; i++ ) {
+			var p = spawn();
+			p.y = Math.random() * ( pCanvas.height || 48 );
+			p.life = Math.random() * p.maxLife;
+			particles.push( p );
+		}
+		var stopped = false, raf = 0;
+		function tick() {
+			if ( stopped || ! pCanvas.isConnected ) { stopped = true; return; }
+			var w = link.offsetWidth || 200, h = link.offsetHeight || 48;
+			if ( pCanvas.width !== w || pCanvas.height !== h ) { pCanvas.width = w; pCanvas.height = h; }
+			ctx.clearRect( 0, 0, w, h );
+			for ( var i = 0; i < particles.length; i++ ) {
+				var pt = particles[ i ];
+				pt.life++;
+				if ( pt.life >= pt.maxLife ) { particles[ i ] = spawn(); continue; }
+				pt.x += pt.vx; pt.y += pt.vy;
+				var t = pt.life / pt.maxLife;
+				var a = ( t < 0.2 ? t / 0.2 : ( 1.0 - ( t - 0.2 ) / 0.8 ) ) * 0.55;
+				ctx.save();
+				ctx.globalAlpha = a;
+				ctx.translate( pt.x, pt.y );
+				ctx.rotate( pt.rot );
+				ctx.scale( 1, pt.stretch );
+				var gr = ctx.createRadialGradient( 0, 0, 0, 0, 0, pt.size );
+				gr.addColorStop( 0, pt.color );
+				gr.addColorStop( 1, 'transparent' );
+				ctx.fillStyle = gr;
+				ctx.beginPath(); ctx.arc( 0, 0, pt.size, 0, Math.PI * 2 ); ctx.fill();
+				ctx.restore();
+			}
+			if ( particles.length < 6 ) { particles.push( spawn() ); }
+			raf = requestAnimationFrame( tick );
+		}
+		raf = requestAnimationFrame( tick );
+		return function () {
+			stopped = true;
+			if ( raf ) { cancelAnimationFrame( raf ); }
+			if ( pCanvas.parentNode ) { pCanvas.parentNode.removeChild( pCanvas ); }
+		};
+	}
+
+	function createNeonParticles( pCanvas, link, cfg ) {
+		var ctx = pCanvas.getContext( '2d' );
+		if ( ! ctx ) { return null; }
+		var SCHEME_COLORS = { cyan: '#00f5ff', magenta: '#ff00ff', gold: '#ffd700' };
+		var color = SCHEME_COLORS[ cfg.neonScheme ] || '#00f5ff';
+		var sparks = [], stopped = false, raf = 0, tick = 0;
+		var mouseX = -1, mouseY = -1;
+		function spawnSpark( x, y ) {
+			var w = pCanvas.width || 200, h = pCanvas.height || 48;
+			var sx = ( x !== undefined ) ? x : Math.random() * w;
+			var sy = ( y !== undefined ) ? y : Math.random() * h;
+			var len = 6 + Math.random() * 18, ang = Math.random() * Math.PI * 2;
+			return { x: sx, y: sy, x2: sx + Math.cos( ang ) * len, y2: sy + Math.sin( ang ) * len,
+				life: 0, maxLife: 8 + Math.floor( Math.random() * 10 ), w: 0.6 + Math.random() * 1.4 };
+		}
+		function onMove( e ) {
+			var rect = link.getBoundingClientRect();
+			mouseX = ( e.touches ? e.touches[ 0 ].clientX : e.clientX ) - rect.left;
+			mouseY = ( e.touches ? e.touches[ 0 ].clientY : e.clientY ) - rect.top;
+		}
+		link.addEventListener( 'mousemove', onMove, true );
+		link.addEventListener( 'touchmove', onMove, { passive: true, capture: true } );
+		function run() {
+			if ( stopped || ! pCanvas.isConnected ) { stopped = true; return; }
+			var w = link.offsetWidth || 200, h = link.offsetHeight || 48;
+			if ( pCanvas.width !== w || pCanvas.height !== h ) { pCanvas.width = w; pCanvas.height = h; }
+			ctx.clearRect( 0, 0, w, h );
+			tick++;
+			if ( tick % 8 === 0 && Math.random() < 0.65 ) { sparks.push( spawnSpark() ); }
+			if ( mouseX >= 0 && Math.random() < 0.2 ) {
+				sparks.push( spawnSpark(
+					mouseX + ( Math.random() - 0.5 ) * 24,
+					mouseY + ( Math.random() - 0.5 ) * 24
+				) );
+			}
+			for ( var i = sparks.length - 1; i >= 0; i-- ) {
+				var s = sparks[ i ];
+				s.life++;
+				if ( s.life >= s.maxLife ) { sparks.splice( i, 1 ); continue; }
+				var t = s.life / s.maxLife;
+				var a = ( t < 0.15 ? t / 0.15 : 1.0 - ( t - 0.15 ) / 0.85 ) * 0.9;
+				ctx.save();
+				ctx.globalAlpha = a;
+				ctx.strokeStyle = color;
+				ctx.lineWidth = s.w;
+				ctx.shadowColor = color;
+				ctx.shadowBlur = 5;
+				ctx.beginPath(); ctx.moveTo( s.x, s.y ); ctx.lineTo( s.x2, s.y2 ); ctx.stroke();
+				ctx.restore();
+			}
+			raf = requestAnimationFrame( run );
+		}
+		raf = requestAnimationFrame( run );
+		return function () {
+			stopped = true;
+			if ( raf ) { cancelAnimationFrame( raf ); }
+			link.removeEventListener( 'mousemove', onMove, true );
+			link.removeEventListener( 'touchmove', onMove, true );
+			if ( pCanvas.parentNode ) { pCanvas.parentNode.removeChild( pCanvas ); }
+		};
+	}
+
+	function createPrismParticles( pCanvas, link, cfg ) {
+		var ctx = pCanvas.getContext( '2d' );
+		if ( ! ctx ) { return null; }
+		var particles = [];
+		function spawn() {
+			var w = pCanvas.width || 200, h = pCanvas.height || 48;
+			return { x: Math.random() * w, y: Math.random() * h,
+				vx: ( Math.random() - 0.5 ) * 0.55, vy: ( Math.random() - 0.5 ) * 0.55,
+				rot: Math.random() * Math.PI * 2, rotSpeed: ( Math.random() - 0.5 ) * 0.035,
+				size: 3.5 + Math.random() * 6.5, hue: Math.random() * 360,
+				life: 0, maxLife: 100 + Math.random() * 80 };
+		}
+		for ( var i = 0; i < 10; i++ ) {
+			var p = spawn();
+			p.life = Math.random() * p.maxLife;
+			particles.push( p );
+		}
+		var stopped = false, raf = 0;
+		function tick() {
+			if ( stopped || ! pCanvas.isConnected ) { stopped = true; return; }
+			var w = link.offsetWidth || 200, h = link.offsetHeight || 48;
+			if ( pCanvas.width !== w || pCanvas.height !== h ) { pCanvas.width = w; pCanvas.height = h; }
+			ctx.clearRect( 0, 0, w, h );
+			for ( var i = 0; i < particles.length; i++ ) {
+				var pt = particles[ i ];
+				pt.life++;
+				if ( pt.life >= pt.maxLife ) { particles[ i ] = spawn(); continue; }
+				pt.x += pt.vx; pt.y += pt.vy;
+				pt.rot += pt.rotSpeed;
+				pt.hue = ( pt.hue + 0.5 ) % 360;
+				if ( pt.x < 0 || pt.x > w ) { pt.vx *= -1; }
+				if ( pt.y < 0 || pt.y > h ) { pt.vy *= -1; }
+				var t = pt.life / pt.maxLife;
+				var a = ( t < 0.15 ? t / 0.15 : ( 1.0 - ( t - 0.15 ) / 0.85 ) ) * 0.75;
+				ctx.save();
+				ctx.globalAlpha = a;
+				ctx.translate( pt.x, pt.y );
+				ctx.rotate( pt.rot );
+				ctx.beginPath();
+				ctx.moveTo( 0, -pt.size );
+				ctx.lineTo( pt.size * 0.55, 0 );
+				ctx.lineTo( 0, pt.size );
+				ctx.lineTo( -pt.size * 0.55, 0 );
+				ctx.closePath();
+				var gr = ctx.createLinearGradient( -pt.size * 0.55, -pt.size, pt.size * 0.55, pt.size );
+				gr.addColorStop( 0, 'hsl(' + pt.hue + ',100%,72%)' );
+				gr.addColorStop( 0.5, 'hsl(' + ( ( pt.hue + 60 ) % 360 ) + ',100%,78%)' );
+				gr.addColorStop( 1, 'hsl(' + ( ( pt.hue + 120 ) % 360 ) + ',100%,72%)' );
+				ctx.fillStyle = gr;
+				ctx.fill();
+				ctx.restore();
+			}
+			raf = requestAnimationFrame( tick );
+		}
+		raf = requestAnimationFrame( tick );
+		return function () {
+			stopped = true;
+			if ( raf ) { cancelAnimationFrame( raf ); }
+			if ( pCanvas.parentNode ) { pCanvas.parentNode.removeChild( pCanvas ); }
+		};
+	}
+
+	function createPlasmaParticles( pCanvas, link, cfg ) {
+		var ctx = pCanvas.getContext( '2d' );
+		if ( ! ctx ) { return null; }
+		var orbs = [];
+		function spawn() {
+			var w = pCanvas.width || 200, h = pCanvas.height || 48;
+			return { cx: w * 0.1 + Math.random() * w * 0.8,
+				cy: h * 0.2 + Math.random() * h * 0.6,
+				orbitR: 8 + Math.random() * 22, orbitAngle: Math.random() * Math.PI * 2,
+				orbitSpeed: ( Math.random() - 0.5 ) * 0.04,
+				r: 4 + Math.random() * 7, pulsePhase: Math.random() * Math.PI * 2,
+				pulseSpeed: 0.05 + Math.random() * 0.05,
+				hue: 255 + Math.random() * 75,
+				life: 0, maxLife: 150 + Math.random() * 100 };
+		}
+		for ( var i = 0; i < 7; i++ ) {
+			var o = spawn();
+			o.life = Math.random() * o.maxLife;
+			orbs.push( o );
+		}
+		var stopped = false, raf = 0;
+		function tick() {
+			if ( stopped || ! pCanvas.isConnected ) { stopped = true; return; }
+			var w = link.offsetWidth || 200, h = link.offsetHeight || 48;
+			if ( pCanvas.width !== w || pCanvas.height !== h ) { pCanvas.width = w; pCanvas.height = h; }
+			ctx.clearRect( 0, 0, w, h );
+			for ( var i = 0; i < orbs.length; i++ ) {
+				var ob = orbs[ i ];
+				ob.life++;
+				if ( ob.life >= ob.maxLife ) { orbs[ i ] = spawn(); continue; }
+				ob.orbitAngle += ob.orbitSpeed;
+				ob.pulsePhase += ob.pulseSpeed;
+				var x = ob.cx + Math.cos( ob.orbitAngle ) * ob.orbitR;
+				var y = ob.cy + Math.sin( ob.orbitAngle ) * ob.orbitR * 0.5;
+				var r = ob.r * ( 0.8 + 0.3 * Math.sin( ob.pulsePhase ) );
+				var t = ob.life / ob.maxLife;
+				var a = ( t < 0.2 ? t / 0.2 : ( 1.0 - ( t - 0.2 ) / 0.8 ) ) * 0.65;
+				ctx.save();
+				ctx.globalAlpha = a;
+				var gr = ctx.createRadialGradient( x, y, 0, x, y, r * 2.5 );
+				gr.addColorStop( 0, 'hsl(' + ob.hue + ',100%,85%)' );
+				gr.addColorStop( 0.4, 'hsl(' + ob.hue + ',100%,60%)' );
+				gr.addColorStop( 1, 'transparent' );
+				ctx.fillStyle = gr;
+				ctx.beginPath(); ctx.arc( x, y, r * 2.5, 0, Math.PI * 2 ); ctx.fill();
+				ctx.restore();
+			}
+			raf = requestAnimationFrame( tick );
+		}
+		raf = requestAnimationFrame( tick );
+		return function () {
+			stopped = true;
+			if ( raf ) { cancelAnimationFrame( raf ); }
+			if ( pCanvas.parentNode ) { pCanvas.parentNode.removeChild( pCanvas ); }
+		};
+	}
+
+	function createInfernoParticles( pCanvas, link, wrapper ) {
+		var ctx = pCanvas.getContext( '2d' );
+		if ( ! ctx ) { return null; }
+		var OVERHANG = 55, SIDE = 15;
+		function resize() {
+			var w = ( link.offsetWidth || 200 ) + SIDE * 2;
+			var h = ( link.offsetHeight || 48 ) + OVERHANG;
+			if ( pCanvas.width !== w || pCanvas.height !== h ) {
+				pCanvas.width = w;
+				pCanvas.height = h;
+				pCanvas.style.left = ( -SIDE ) + 'px';
+				pCanvas.style.top = ( -OVERHANG ) + 'px';
+				pCanvas.style.width = w + 'px';
+				pCanvas.style.height = h + 'px';
+			}
+		}
+		var whips = [];
+		function spawnWhip() {
+			var lw = link.offsetWidth || 200;
+			return { x: SIDE + Math.random() * lw,
+				baseY: OVERHANG + ( link.offsetHeight || 48 ),
+				progress: 0, speed: 0.008 + Math.random() * 0.012,
+				height: 38 + Math.random() * 50,
+				wobble: Math.random() * Math.PI * 2,
+				wobbleFreq: 0.06 + Math.random() * 0.07,
+				thickness: 2.5 + Math.random() * 3.5,
+				hue: 15 + Math.random() * 25 };
+		}
+		var embers = [];
+		function spawnEmber() {
+			var lw = link.offsetWidth || 200, lh = link.offsetHeight || 48;
+			return { x: SIDE + Math.random() * lw,
+				y: OVERHANG + lh * ( 0.2 + Math.random() * 0.7 ),
+				vx: ( Math.random() - 0.5 ) * 1.4, vy: -( 0.8 + Math.random() * 1.7 ),
+				life: 0, maxLife: 50 + Math.random() * 40,
+				size: 1.2 + Math.random() * 1.8, hue: 25 + Math.random() * 30 };
+		}
+		for ( var i = 0; i < 5; i++ ) { var wh = spawnWhip(); wh.progress = Math.random(); whips.push( wh ); }
+		for ( var j = 0; j < 8; j++ ) { var em = spawnEmber(); em.life = Math.random() * em.maxLife; embers.push( em ); }
+		var stopped = false, raf = 0;
+		function tick() {
+			if ( stopped || ! pCanvas.isConnected ) { stopped = true; return; }
+			resize();
+			ctx.clearRect( 0, 0, pCanvas.width, pCanvas.height );
+			var now = performance.now() * 0.001;
+			for ( var i = 0; i < whips.length; i++ ) {
+				var p = whips[ i ];
+				p.progress += p.speed;
+				if ( p.progress >= 1.0 ) { whips[ i ] = spawnWhip(); continue; }
+				var t = p.progress;
+				var alpha = ( t < 0.3 ? t / 0.3 : ( t < 0.6 ? 1.0 : ( 1.0 - ( t - 0.6 ) / 0.4 ) ) ) * 0.85;
+				var riseY = p.baseY - p.height * t;
+				var wobX = Math.sin( now * p.wobbleFreq * 6.0 + p.wobble ) * p.thickness * 2.8 * ( 1.0 - t * 0.4 );
+				var grad = ctx.createLinearGradient( p.x, p.baseY, p.x + wobX, riseY );
+				grad.addColorStop( 0,   'hsla(' + p.hue + ',100%,55%,' + alpha + ')' );
+				grad.addColorStop( 0.45,'hsla(' + ( p.hue + 15 ) + ',100%,60%,' + ( alpha * 0.8 ) + ')' );
+				grad.addColorStop( 0.85,'hsla(' + ( p.hue + 30 ) + ',100%,65%,' + ( alpha * 0.35 ) + ')' );
+				grad.addColorStop( 1.0, 'hsla(45,100%,80%,0)' );
+				ctx.save();
+				ctx.strokeStyle = grad;
+				ctx.lineWidth = p.thickness * ( 1.0 - t * 0.65 );
+				ctx.lineCap = 'round';
+				ctx.lineJoin = 'round';
+				ctx.beginPath();
+				ctx.moveTo( p.x, p.baseY );
+				ctx.quadraticCurveTo( p.x + wobX * 0.5, p.baseY - p.height * 0.5, p.x + wobX, riseY );
+				ctx.stroke();
+				ctx.restore();
+			}
+			for ( var j = 0; j < embers.length; j++ ) {
+				var e = embers[ j ];
+				e.life++;
+				if ( e.life >= e.maxLife ) { embers[ j ] = spawnEmber(); continue; }
+				e.x += e.vx; e.y += e.vy;
+				e.vy += 0.04;
+				e.vx += ( Math.random() - 0.5 ) * 0.08;
+				var lt = e.life / e.maxLife;
+				var ea = ( lt < 0.2 ? lt / 0.2 : 1.0 - ( lt - 0.2 ) / 0.8 ) * 0.88;
+				ctx.save();
+				ctx.globalAlpha = ea;
+				var gr = ctx.createRadialGradient( e.x, e.y, 0, e.x, e.y, e.size * 2 );
+				gr.addColorStop( 0, 'hsl(' + e.hue + ',100%,90%)' );
+				gr.addColorStop( 0.5, 'hsl(' + e.hue + ',100%,65%)' );
+				gr.addColorStop( 1, 'transparent' );
+				ctx.fillStyle = gr;
+				ctx.beginPath(); ctx.arc( e.x, e.y, e.size * 2, 0, Math.PI * 2 ); ctx.fill();
+				ctx.restore();
+			}
+			raf = requestAnimationFrame( tick );
+		}
+		raf = requestAnimationFrame( tick );
+		return function () {
+			stopped = true;
+			if ( raf ) { cancelAnimationFrame( raf ); }
+			if ( pCanvas.parentNode ) { pCanvas.parentNode.removeChild( pCanvas ); }
+		};
+	}
 
 	function createAuroraBtnEffect( canvas, link, cfg ) {
 		var gl = canvas.getContext( 'webgl' ) || canvas.getContext( 'experimental-webgl' );
@@ -387,23 +735,34 @@
 		link.addEventListener( 'touchmove', onPointerMove, { passive: true, capture: true } );
 		frameHandle = requestAnimationFrame( render );
 
+		var pCanvas = document.createElement( 'canvas' );
+		pCanvas.className = 'ace-btn-particle-canvas';
+		pCanvas.setAttribute( 'aria-hidden', 'true' );
+		pCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;mix-blend-mode:screen;border-radius:inherit;';
+		link.appendChild( pCanvas );
+		var stopParticles = createAuroraParticles( pCanvas, link, cfg );
+		var innerObs = null;
+		if ( window.MutationObserver ) {
+			innerObs = new MutationObserver( function () {
+				if ( destroyed ) { return; }
+				if ( ! canvas.parentNode || canvas.parentNode !== link ) { link.insertBefore( canvas, link.firstChild ); }
+				if ( ! pCanvas.parentNode || pCanvas.parentNode !== link ) { link.appendChild( pCanvas ); }
+			} );
+			innerObs.observe( link, { childList: true } );
+		}
+
 		return {
 			destroy: function () {
-				if ( destroyed ) {
-					return;
-				}
+				if ( destroyed ) { return; }
 				destroyed = true;
-				if ( frameHandle ) {
-					cancelAnimationFrame( frameHandle );
-					frameHandle = 0;
-				}
+				if ( innerObs ) { innerObs.disconnect(); innerObs = null; }
+				if ( stopParticles ) { stopParticles(); stopParticles = null; }
+				if ( frameHandle ) { cancelAnimationFrame( frameHandle ); frameHandle = 0; }
 				link.removeEventListener( 'mousemove', onPointerMove, true );
 				link.removeEventListener( 'touchmove', onPointerMove, true );
 				gl.deleteProgram( program );
 				gl.deleteBuffer( buf );
-				if ( canvas.parentNode ) {
-					canvas.parentNode.removeChild( canvas );
-				}
+				if ( canvas.parentNode ) { canvas.parentNode.removeChild( canvas ); }
 			},
 		};
 	}
@@ -485,23 +844,34 @@
 		link.addEventListener( 'touchmove', onPointerMove, { passive: true, capture: true } );
 		frameHandle = requestAnimationFrame( render );
 
+		var pCanvas = document.createElement( 'canvas' );
+		pCanvas.className = 'ace-btn-particle-canvas';
+		pCanvas.setAttribute( 'aria-hidden', 'true' );
+		pCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;mix-blend-mode:screen;border-radius:inherit;';
+		link.appendChild( pCanvas );
+		var stopParticles = createNeonParticles( pCanvas, link, cfg );
+		var innerObs = null;
+		if ( window.MutationObserver ) {
+			innerObs = new MutationObserver( function () {
+				if ( destroyed ) { return; }
+				if ( ! canvas.parentNode || canvas.parentNode !== link ) { link.insertBefore( canvas, link.firstChild ); }
+				if ( ! pCanvas.parentNode || pCanvas.parentNode !== link ) { link.appendChild( pCanvas ); }
+			} );
+			innerObs.observe( link, { childList: true } );
+		}
+
 		return {
 			destroy: function () {
-				if ( destroyed ) {
-					return;
-				}
+				if ( destroyed ) { return; }
 				destroyed = true;
-				if ( frameHandle ) {
-					cancelAnimationFrame( frameHandle );
-					frameHandle = 0;
-				}
+				if ( innerObs ) { innerObs.disconnect(); innerObs = null; }
+				if ( stopParticles ) { stopParticles(); stopParticles = null; }
+				if ( frameHandle ) { cancelAnimationFrame( frameHandle ); frameHandle = 0; }
 				link.removeEventListener( 'mousemove', onPointerMove, true );
 				link.removeEventListener( 'touchmove', onPointerMove, true );
 				gl.deleteProgram( program );
 				gl.deleteBuffer( buf );
-				if ( canvas.parentNode ) {
-					canvas.parentNode.removeChild( canvas );
-				}
+				if ( canvas.parentNode ) { canvas.parentNode.removeChild( canvas ); }
 			},
 		};
 	}
@@ -568,23 +938,34 @@
 		link.addEventListener( 'touchmove', onPointerMove, { passive: true, capture: true } );
 		frameHandle = requestAnimationFrame( render );
 
+		var pCanvas = document.createElement( 'canvas' );
+		pCanvas.className = 'ace-btn-particle-canvas';
+		pCanvas.setAttribute( 'aria-hidden', 'true' );
+		pCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;mix-blend-mode:screen;border-radius:inherit;';
+		link.appendChild( pCanvas );
+		var stopParticles = createPrismParticles( pCanvas, link, cfg );
+		var innerObs = null;
+		if ( window.MutationObserver ) {
+			innerObs = new MutationObserver( function () {
+				if ( destroyed ) { return; }
+				if ( ! canvas.parentNode || canvas.parentNode !== link ) { link.insertBefore( canvas, link.firstChild ); }
+				if ( ! pCanvas.parentNode || pCanvas.parentNode !== link ) { link.appendChild( pCanvas ); }
+			} );
+			innerObs.observe( link, { childList: true } );
+		}
+
 		return {
 			destroy: function () {
-				if ( destroyed ) {
-					return;
-				}
+				if ( destroyed ) { return; }
 				destroyed = true;
-				if ( frameHandle ) {
-					cancelAnimationFrame( frameHandle );
-					frameHandle = 0;
-				}
+				if ( innerObs ) { innerObs.disconnect(); innerObs = null; }
+				if ( stopParticles ) { stopParticles(); stopParticles = null; }
+				if ( frameHandle ) { cancelAnimationFrame( frameHandle ); frameHandle = 0; }
 				link.removeEventListener( 'mousemove', onPointerMove, true );
 				link.removeEventListener( 'touchmove', onPointerMove, true );
 				gl.deleteProgram( program );
 				gl.deleteBuffer( buf );
-				if ( canvas.parentNode ) {
-					canvas.parentNode.removeChild( canvas );
-				}
+				if ( canvas.parentNode ) { canvas.parentNode.removeChild( canvas ); }
 			},
 		};
 	}
@@ -651,28 +1032,39 @@
 		link.addEventListener( 'touchmove', onPointerMove, { passive: true, capture: true } );
 		frameHandle = requestAnimationFrame( render );
 
+		var pCanvas = document.createElement( 'canvas' );
+		pCanvas.className = 'ace-btn-particle-canvas';
+		pCanvas.setAttribute( 'aria-hidden', 'true' );
+		pCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;mix-blend-mode:screen;border-radius:inherit;';
+		link.appendChild( pCanvas );
+		var stopParticles = createPlasmaParticles( pCanvas, link, cfg );
+		var innerObs = null;
+		if ( window.MutationObserver ) {
+			innerObs = new MutationObserver( function () {
+				if ( destroyed ) { return; }
+				if ( ! canvas.parentNode || canvas.parentNode !== link ) { link.insertBefore( canvas, link.firstChild ); }
+				if ( ! pCanvas.parentNode || pCanvas.parentNode !== link ) { link.appendChild( pCanvas ); }
+			} );
+			innerObs.observe( link, { childList: true } );
+		}
+
 		return {
 			destroy: function () {
-				if ( destroyed ) {
-					return;
-				}
+				if ( destroyed ) { return; }
 				destroyed = true;
-				if ( frameHandle ) {
-					cancelAnimationFrame( frameHandle );
-					frameHandle = 0;
-				}
+				if ( innerObs ) { innerObs.disconnect(); innerObs = null; }
+				if ( stopParticles ) { stopParticles(); stopParticles = null; }
+				if ( frameHandle ) { cancelAnimationFrame( frameHandle ); frameHandle = 0; }
 				link.removeEventListener( 'mousemove', onPointerMove, true );
 				link.removeEventListener( 'touchmove', onPointerMove, true );
 				gl.deleteProgram( program );
 				gl.deleteBuffer( buf );
-				if ( canvas.parentNode ) {
-					canvas.parentNode.removeChild( canvas );
-				}
+				if ( canvas.parentNode ) { canvas.parentNode.removeChild( canvas ); }
 			},
 		};
 	}
 
-	function createInfernoBtnEffect( canvas, link, cfg ) {
+	function createInfernoBtnEffect( canvas, link, wrapper, cfg ) {
 		var gl = canvas.getContext( 'webgl' ) || canvas.getContext( 'experimental-webgl' );
 		if ( ! gl ) {
 			return null;
@@ -734,23 +1126,34 @@
 		link.addEventListener( 'touchmove', onPointerMove, { passive: true, capture: true } );
 		frameHandle = requestAnimationFrame( render );
 
+		var pCanvas = document.createElement( 'canvas' );
+		pCanvas.className = 'ace-btn-particle-canvas ace-btn-fire-whips';
+		pCanvas.setAttribute( 'aria-hidden', 'true' );
+		pCanvas.style.cssText = 'position:absolute;pointer-events:none;z-index:10;';
+		wrapper.appendChild( pCanvas );
+		var stopParticles = createInfernoParticles( pCanvas, link, wrapper );
+		var innerObs = null;
+		if ( window.MutationObserver ) {
+			innerObs = new MutationObserver( function () {
+				if ( destroyed ) { return; }
+				if ( ! canvas.parentNode || canvas.parentNode !== link ) { link.insertBefore( canvas, link.firstChild ); }
+				// pCanvas stays on wrapper, no re-injection needed here
+			} );
+			innerObs.observe( link, { childList: true } );
+		}
+
 		return {
 			destroy: function () {
-				if ( destroyed ) {
-					return;
-				}
+				if ( destroyed ) { return; }
 				destroyed = true;
-				if ( frameHandle ) {
-					cancelAnimationFrame( frameHandle );
-					frameHandle = 0;
-				}
+				if ( innerObs ) { innerObs.disconnect(); innerObs = null; }
+				if ( stopParticles ) { stopParticles(); stopParticles = null; }
+				if ( frameHandle ) { cancelAnimationFrame( frameHandle ); frameHandle = 0; }
 				link.removeEventListener( 'mousemove', onPointerMove, true );
 				link.removeEventListener( 'touchmove', onPointerMove, true );
 				gl.deleteProgram( program );
 				gl.deleteBuffer( buf );
-				if ( canvas.parentNode ) {
-					canvas.parentNode.removeChild( canvas );
-				}
+				if ( canvas.parentNode ) { canvas.parentNode.removeChild( canvas ); }
 			},
 		};
 	}
@@ -774,6 +1177,10 @@
 	}
 
 	function destroyWrapperEffect( wrapper ) {
+		if ( wrapper && wrapper._aceAttrObs ) {
+			wrapper._aceAttrObs.disconnect();
+			wrapper._aceAttrObs = null;
+		}
 		if ( wrapper && wrapper._aceGLEffect ) {
 			wrapper._aceGLEffect.destroy();
 			wrapper._aceGLEffect = null;
@@ -832,7 +1239,7 @@
 		} else if ( type === 'plasma' ) {
 			effect = createPlasmaBtnEffect( canvas, link, cfg );
 		} else if ( type === 'inferno' ) {
-			effect = createInfernoBtnEffect( canvas, link, cfg );
+			effect = createInfernoBtnEffect( canvas, link, wrapper, cfg );
 		}
 
 		if ( effect ) {
@@ -840,6 +1247,18 @@
 			wrapper._aceGLType = type;
 		} else if ( canvas.parentNode ) {
 			canvas.parentNode.removeChild( canvas );
+		}
+
+		if ( effect && window.MutationObserver ) {
+			if ( wrapper._aceAttrObs ) { wrapper._aceAttrObs.disconnect(); }
+			wrapper._aceAttrObs = new MutationObserver( function () {
+				destroyWrapperEffect( wrapper );
+				setTimeout( function () { mountBtnEffect( wrapper ); }, 10 );
+			} );
+			wrapper._aceAttrObs.observe( wrapper, {
+				attributes: true,
+				attributeFilter: [ 'data-ace-aurora-palette', 'data-ace-neon-scheme' ],
+			} );
 		}
 	}
 

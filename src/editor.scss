@@ -674,7 +674,6 @@ background-position: 170% center, 100% center;
 }
 
 // WebGL button types — canvas fills the link, text floats above
-// Aurora / Neon / Prism / Plasma / Inferno all share this hosting pattern
 .ace-artistic-btn--aurora,
 .ace-artistic-btn--neon,
 .ace-artistic-btn--prism,
@@ -688,6 +687,12 @@ background-position: 170% center, 100% center;
 		color: #fff !important;
 		border-color: transparent !important;
 	}
+}
+
+// Inferno wrapper must be overflow:visible so fire whip particles can lick above the button
+.ace-artistic-btn--inferno {
+	position: relative !important;
+	overflow: visible !important;
 }
 
 // Aurora — subtle coloured text to complement the WebGL light bands
@@ -731,6 +736,25 @@ background-position: 170% center, 100% center;
 	border-radius: inherit !important;
 	pointer-events: none !important;
 	z-index: -1 !important;
+}
+
+// 2D particle overlay canvas (aurora streaks, neon arcs, prism shards, plasma orbs)
+.ace-btn-particle-canvas {
+	position: absolute !important;
+	inset: 0 !important;
+	width: 100% !important;
+	height: 100% !important;
+	border-radius: inherit !important;
+	pointer-events: none !important;
+	z-index: 1 !important;
+	mix-blend-mode: screen !important;
+}
+
+// Fire whip canvas sits on the wrapper, sized+positioned by JS
+.ace-btn-fire-whips {
+	pointer-events: none !important;
+	z-index: 10 !important;
+	mix-blend-mode: screen !important;
 }
 
 .ace-magic-gradient-picker {
