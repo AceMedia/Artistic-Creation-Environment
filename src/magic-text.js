@@ -52,20 +52,52 @@
 		return container;
 	}
 
-	// Extract hex colours from the element's --ace-magic-gradient custom property.
-	// Result is cached on the element so getComputedStyle is only called once per span.
+	var TYPE_COLORS = {
+		aurora:  [ '#4ade80', '#a78bfa', '#34d399', '#818cf8', '#c084fc', '#ffffff' ],
+		neon:    null, // resolved at runtime from --ace-neon-color
+		prism:   [ '#ff0080', '#ff8c00', '#ffe600', '#00e5ff', '#0070ff', '#a550ff', '#ffffff' ],
+		plasma:  [ '#a78bfa', '#db2777', '#7c3aed', '#e879f9', '#818cf8', '#ffffff' ],
+		inferno: [ '#dc2626', '#f97316', '#fbbf24', '#fef3c7', '#ef4444', '#ffffff' ],
+	};
+
+	// Detect which artistic button type (if any) applies to el.
+	function getArtisticBtnType( el ) {
+		var cls = el.className || '';
+		var match = cls.match( /\bace-artistic-btn--(\w+)\b/ );
+		return match ? match[ 1 ] : null;
+	}
+
+	// Extract hex colours from the element's CSS variables / classes.
+	// Result is cached on the element so getComputedStyle is only called once per element.
 	function getElementColors( el ) {
 		if ( el._aceColors ) return el._aceColors;
 		var colors = [];
-		try {
-			var gradVal = getComputedStyle( el ).getPropertyValue( '--ace-magic-gradient' ).trim();
-			if ( gradVal ) {
-				var found = gradVal.match( /#[0-9a-fA-F]{6}/g );
-				if ( found && found.length >= 2 ) colors = found;
+		var type = getArtisticBtnType( el );
+
+		if ( type && type !== 'magic' ) {
+			if ( type === 'neon' ) {
+				try {
+					var neonColor = getComputedStyle( el ).getPropertyValue( '--ace-neon-color' ).trim();
+					colors = neonColor ? [ neonColor, '#ffffff' ] : [ '#00f5ff', '#ffffff' ];
+				} catch ( e ) {
+					colors = [ '#00f5ff', '#ffffff' ];
+				}
+			} else {
+				colors = TYPE_COLORS[ type ] || DEFAULT_COLORS;
 			}
-		} catch ( e ) {}
-		if ( colors.length < 2 ) colors = DEFAULT_COLORS.slice( 0, -1 );
-		colors = colors.concat( [ '#ffffff' ] ); // always include white
+		} else {
+			// Magic (text or button) — read --ace-magic-gradient
+			try {
+				var gradVal = getComputedStyle( el ).getPropertyValue( '--ace-magic-gradient' ).trim();
+				if ( gradVal ) {
+					var found = gradVal.match( /#[0-9a-fA-F]{6}/g );
+					if ( found && found.length >= 2 ) colors = found;
+				}
+			} catch ( e ) {}
+			if ( colors.length < 2 ) colors = DEFAULT_COLORS.slice( 0, -1 );
+			colors = colors.concat( [ '#ffffff' ] );
+		}
+
 		el._aceColors = colors;
 		return colors;
 	}
@@ -108,11 +140,11 @@
 	}
 
 	// Ambient sparkles: periodically spawn at random positions within every visible
-	// .ace-magic-text element or .ace-magic-btn--sparkles button, regardless of mouse position.
+	// .ace-magic-text element or .ace-artistic-btn--sparkles button, regardless of mouse position.
 	function startAmbient() {
 		if ( _ambientInterval ) return;
 		_ambientInterval = setInterval( function () {
-			var els = document.querySelectorAll( '.ace-magic-text, .ace-magic-btn--sparkles' );
+			var els = document.querySelectorAll( '.ace-magic-text, .ace-artistic-btn--sparkles' );
 			if ( ! els.length ) {
 				clearInterval( _ambientInterval );
 				_ambientInterval = null;
@@ -143,11 +175,11 @@
 		} );
 
 		// Bind mouse-move sparkles to buttons with the sparkle option enabled.
-		// Colours are read from the wrapper element which holds --ace-magic-gradient.
-		( root || document ).querySelectorAll( '.ace-magic-btn--sparkles .wp-block-button__link' ).forEach( function ( link ) {
+		// Colors are read from the wrapper element which holds type-specific CSS vars.
+		( root || document ).querySelectorAll( '.ace-artistic-btn--sparkles .wp-block-button__link' ).forEach( function ( link ) {
 			if ( link._aceMagicBtnBound ) return;
 			link._aceMagicBtnBound = true;
-			var wrapper = link.closest( '.ace-magic-btn--sparkles' );
+			var wrapper = link.closest( '.ace-artistic-btn--sparkles' );
 			link.addEventListener( 'mousemove', function ( e ) {
 				onMouseMove( e, wrapper || link );
 			} );
@@ -168,7 +200,7 @@
 							node.classList &&
 							(
 								node.classList.contains( 'ace-magic-text' ) ||
-								node.classList.contains( 'ace-magic-btn--sparkles' )
+								node.classList.contains( 'ace-artistic-btn--sparkles' )
 							)
 						) {
 							attachListeners( node.parentElement );

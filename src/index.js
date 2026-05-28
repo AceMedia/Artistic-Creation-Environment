@@ -3354,27 +3354,81 @@ registerFormatType( MAGIC_FORMAT_TYPE, {
 	edit: MagicTextButton,
 } );
 
-// ─── Magic Button Background ──────────────────────────────────────────────────
+// ─── Artistic Button Background ───────────────────────────────────────────────
+
+const ARTISTIC_BTN_TYPES = [
+	{ label: __( 'None', 'artistic-creation-environment' ), value: '' },
+	{ label: __( '✨ Magic', 'artistic-creation-environment' ), value: 'magic' },
+	{ label: __( '🌌 Aurora', 'artistic-creation-environment' ), value: 'aurora' },
+	{ label: __( '⚡ Neon', 'artistic-creation-environment' ), value: 'neon' },
+	{ label: __( '🌈 Prism', 'artistic-creation-environment' ), value: 'prism' },
+	{ label: __( '⚗️ Plasma', 'artistic-creation-environment' ), value: 'plasma' },
+	{ label: __( '🔥 Inferno', 'artistic-creation-environment' ), value: 'inferno' },
+];
+
+const NEON_COLOR_OPTIONS = [
+	{ name: __( 'Cyan', 'artistic-creation-environment' ), color: '#00f5ff' },
+	{ name: __( 'Pink', 'artistic-creation-environment' ), color: '#ff00aa' },
+	{ name: __( 'Green', 'artistic-creation-environment' ), color: '#39ff14' },
+	{ name: __( 'Gold', 'artistic-creation-environment' ), color: '#ffd700' },
+	{ name: __( 'Violet', 'artistic-creation-environment' ), color: '#bf5fff' },
+];
 
 addFilter(
 	'blocks.registerBlockType',
-	'artistic-creation-environment/magic-button-attributes',
+	'artistic-creation-environment/artistic-button-attributes',
 	( settings, name ) => {
 		if ( name !== 'core/button' ) return settings;
 		return {
 			...settings,
 			attributes: {
 				...( settings.attributes || {} ),
+				// aceMagicBg / aceMagicBgSparkles kept for backward compat
 				aceMagicBg: { type: 'string', default: '' },
 				aceMagicBgSparkles: { type: 'boolean', default: false },
+				aceArtisticBtnType: { type: 'string', default: '' },
+				aceNeonColor: { type: 'string', default: '#00f5ff' },
 			},
 		};
 	}
 );
 
-function MagicButtonControls( { attributes, setAttributes } ) {
+// Derive the CSS classes to apply for a given set of button attributes.
+function getArtisticBtnClasses( attributes ) {
+	const { aceMagicBg, aceMagicBgSparkles, aceArtisticBtnType } = attributes;
+	// Backward compat: old blocks with aceMagicBg but no aceArtisticBtnType
+	const type = aceArtisticBtnType || ( aceMagicBg ? 'magic' : '' );
+	if ( ! type ) return '';
+	return [
+		'ace-artistic-btn',
+		`ace-artistic-btn--${ type }`,
+		aceMagicBgSparkles ? 'ace-artistic-btn--sparkles' : '',
+	]
+		.filter( Boolean )
+		.join( ' ' );
+}
+
+// Derive the inline CSS-variable style for a given set of button attributes.
+function getArtisticBtnStyle( attributes ) {
+	const { aceMagicBg, aceArtisticBtnType, aceNeonColor } = attributes;
+	const type = aceArtisticBtnType || ( aceMagicBg ? 'magic' : '' );
+	const style = {};
+	if ( type === 'magic' && aceMagicBg ) {
+		style[ '--ace-magic-gradient' ] = aceMagicBg;
+	}
+	if ( type === 'neon' && aceNeonColor ) {
+		style[ '--ace-neon-color' ] = aceNeonColor;
+	}
+	return style;
+}
+
+function ArtisticButtonControls( { attributes, setAttributes } ) {
 	const [ themeGradients ] = useSettings( 'color.gradients' );
-	const { aceMagicBg, aceMagicBgSparkles } = attributes;
+	const { aceMagicBg, aceMagicBgSparkles, aceArtisticBtnType, aceNeonColor } =
+		attributes;
+
+	// Effective type handles old blocks that only set aceMagicBg
+	const effectiveType = aceArtisticBtnType || ( aceMagicBg ? 'magic' : '' );
 
 	const gradients = [
 		{
@@ -3388,34 +3442,77 @@ function MagicButtonControls( { attributes, setAttributes } ) {
 		<InspectorControls>
 			<PanelBody
 				title={ __( 'Artistic background', 'artistic-creation-environment' ) }
-				initialOpen={ !! aceMagicBg }
+				initialOpen={ !! effectiveType }
 			>
-				<p className="components-base-control__help">
-					{ __(
-						'Apply a magic gradient shimmer as the button background, with optional sparkles.',
-						'artistic-creation-environment'
-					) }
-				</p>
-				<div className="ace-magic-gradient-picker">
-					<p className="ace-magic-gradient-picker__label">
-						{ __( 'Gradient', 'artistic-creation-environment' ) }
-					</p>
-					<div className="ace-magic-gradient-picker__swatches">
-						{ gradients.map( ( { name, gradient } ) => (
-							<button
-								key={ gradient }
-								className={ [
-									'ace-magic-gradient-picker__swatch',
-									aceMagicBg === gradient ? 'is-active' : '',
-								]
-									.filter( Boolean )
-									.join( ' ' ) }
-								title={ name }
-								style={ { background: gradient } }
-								onClick={ () => setAttributes( { aceMagicBg: gradient } ) }
-							/>
-						) ) }
-					</div>
+				<SelectControl
+					label={ __( 'Style', 'artistic-creation-environment' ) }
+					value={ effectiveType }
+					options={ ARTISTIC_BTN_TYPES }
+					onChange={ ( v ) =>
+						setAttributes( {
+							aceArtisticBtnType: v,
+							aceMagicBg: v === 'magic' ? aceMagicBg : '',
+							aceMagicBgSparkles: v ? aceMagicBgSparkles : false,
+						} )
+					}
+				/>
+
+				{ effectiveType === 'magic' && (
+					<>
+						<p className="ace-magic-gradient-picker__label">
+							{ __( 'Gradient', 'artistic-creation-environment' ) }
+						</p>
+						<div className="ace-magic-gradient-picker__swatches">
+							{ gradients.map( ( { name, gradient } ) => (
+								<button
+									key={ gradient }
+									className={ [
+										'ace-magic-gradient-picker__swatch',
+										aceMagicBg === gradient ? 'is-active' : '',
+									]
+										.filter( Boolean )
+										.join( ' ' ) }
+									title={ name }
+									style={ { background: gradient } }
+									onClick={ () =>
+										setAttributes( { aceMagicBg: gradient } )
+									}
+								/>
+							) ) }
+						</div>
+					</>
+				) }
+
+				{ effectiveType === 'neon' && (
+					<>
+						<p className="ace-magic-gradient-picker__label">
+							{ __( 'Glow colour', 'artistic-creation-environment' ) }
+						</p>
+						<div className="ace-magic-gradient-picker__swatches">
+							{ NEON_COLOR_OPTIONS.map( ( { name, color } ) => (
+								<button
+									key={ color }
+									className={ [
+										'ace-magic-gradient-picker__swatch',
+										aceNeonColor === color ? 'is-active' : '',
+									]
+										.filter( Boolean )
+										.join( ' ' ) }
+									title={ name }
+									style={ {
+										background: color,
+										boxShadow: `0 0 8px ${ color }`,
+									} }
+									onClick={ () =>
+										setAttributes( { aceNeonColor: color } )
+									}
+								/>
+							) ) }
+						</div>
+					</>
+				) }
+
+				{ !! effectiveType && (
 					<ToggleControl
 						label={ __( 'Sparkles', 'artistic-creation-environment' ) }
 						checked={ !! aceMagicBgSparkles }
@@ -3423,27 +3520,13 @@ function MagicButtonControls( { attributes, setAttributes } ) {
 							setAttributes( { aceMagicBgSparkles: value } )
 						}
 					/>
-					{ aceMagicBg && (
-						<Button
-							isDestructive
-							variant="link"
-							onClick={ () =>
-								setAttributes( {
-									aceMagicBg: '',
-									aceMagicBgSparkles: false,
-								} )
-							}
-						>
-							{ __( 'Remove', 'artistic-creation-environment' ) }
-						</Button>
-					) }
-				</div>
+				) }
 			</PanelBody>
 		</InspectorControls>
 	);
 }
 
-const withMagicButtonControls = createHigherOrderComponent(
+const withArtisticButtonControls = createHigherOrderComponent(
 	( BlockEdit ) => {
 		return ( props ) => {
 			if ( props.name !== 'core/button' ) {
@@ -3452,7 +3535,7 @@ const withMagicButtonControls = createHigherOrderComponent(
 			return (
 				<>
 					<BlockEdit { ...props } />
-					<MagicButtonControls
+					<ArtisticButtonControls
 						attributes={ props.attributes }
 						setAttributes={ props.setAttributes }
 					/>
@@ -3460,34 +3543,32 @@ const withMagicButtonControls = createHigherOrderComponent(
 			);
 		};
 	},
-	'withMagicButtonControls'
+	'withArtisticButtonControls'
 );
 
 addFilter(
 	'editor.BlockEdit',
-	'artistic-creation-environment/magic-button-controls',
-	withMagicButtonControls
+	'artistic-creation-environment/artistic-button-controls',
+	withArtisticButtonControls
 );
 
-const withMagicButtonClass = createHigherOrderComponent(
+const withArtisticButtonClass = createHigherOrderComponent(
 	( BlockListBlock ) => {
 		return ( props ) => {
 			const { name, attributes } = props;
-			if ( name !== 'core/button' || ! attributes?.aceMagicBg ) {
+			if ( name !== 'core/button' ) {
 				return <BlockListBlock { ...props } />;
 			}
-			const { aceMagicBg, aceMagicBgSparkles } = attributes;
-			const extraClasses = [
-				'ace-magic-btn',
-				aceMagicBgSparkles ? 'ace-magic-btn--sparkles' : '',
-			]
-				.filter( Boolean )
-				.join( ' ' );
+			const extraClasses = getArtisticBtnClasses( attributes );
+			if ( ! extraClasses ) {
+				return <BlockListBlock { ...props } />;
+			}
+			const artStyle = getArtisticBtnStyle( attributes );
 			const wrapperProps = {
 				...( props.wrapperProps || {} ),
 				style: {
 					...( props.wrapperProps?.style || {} ),
-					'--ace-magic-gradient': aceMagicBg,
+					...artStyle,
 				},
 			};
 			return (
@@ -3501,31 +3582,33 @@ const withMagicButtonClass = createHigherOrderComponent(
 			);
 		};
 	},
-	'withMagicButtonClass'
+	'withArtisticButtonClass'
 );
 
 addFilter(
 	'editor.BlockListBlock',
-	'artistic-creation-environment/magic-button-class',
-	withMagicButtonClass
+	'artistic-creation-environment/artistic-button-class',
+	withArtisticButtonClass
 );
 
 addFilter(
 	'blocks.getSaveElement',
-	'artistic-creation-environment/magic-button-save',
+	'artistic-creation-environment/artistic-button-save',
 	( element, blockType, attributes ) => {
-		if ( blockType.name !== 'core/button' || ! attributes?.aceMagicBg ) {
+		if ( blockType.name !== 'core/button' ) {
 			return element;
 		}
-		const { aceMagicBg, aceMagicBgSparkles } = attributes;
+		const extraClasses = getArtisticBtnClasses( attributes );
+		if ( ! extraClasses ) {
+			return element;
+		}
+		const artStyle = getArtisticBtnStyle( attributes );
 		const existingClassName = element.props?.className || '';
-		const sparkleClass = aceMagicBgSparkles ? ' ace-magic-btn--sparkles' : '';
-		const newClassName =
-			`${ existingClassName } ace-magic-btn${ sparkleClass }`.trim();
+		const newClassName = `${ existingClassName } ${ extraClasses }`.trim();
 		const existingStyle = element.props?.style || {};
 		return cloneElement( element, {
 			className: newClassName,
-			style: { ...existingStyle, '--ace-magic-gradient': aceMagicBg },
+			style: { ...existingStyle, ...artStyle },
 		} );
 	}
 );
