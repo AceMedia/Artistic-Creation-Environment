@@ -108,11 +108,11 @@
 	}
 
 	// Ambient sparkles: periodically spawn at random positions within every visible
-	// .ace-magic-text element, regardless of mouse position.
+	// .ace-magic-text element or .ace-magic-btn--sparkles button, regardless of mouse position.
 	function startAmbient() {
 		if ( _ambientInterval ) return;
 		_ambientInterval = setInterval( function () {
-			var els = document.querySelectorAll( '.ace-magic-text' );
+			var els = document.querySelectorAll( '.ace-magic-text, .ace-magic-btn--sparkles' );
 			if ( ! els.length ) {
 				clearInterval( _ambientInterval );
 				_ambientInterval = null;
@@ -141,6 +141,17 @@
 				onMouseMove( e, el );
 			} );
 		} );
+
+		// Bind mouse-move sparkles to buttons with the sparkle option enabled.
+		// Colours are read from the wrapper element which holds --ace-magic-gradient.
+		( root || document ).querySelectorAll( '.ace-magic-btn--sparkles .wp-block-button__link' ).forEach( function ( link ) {
+			if ( link._aceMagicBtnBound ) return;
+			link._aceMagicBtnBound = true;
+			var wrapper = link.closest( '.ace-magic-btn--sparkles' );
+			link.addEventListener( 'mousemove', function ( e ) {
+				onMouseMove( e, wrapper || link );
+			} );
+		} );
 	}
 
 	function init() {
@@ -153,7 +164,13 @@
 				mutations.forEach( function ( m ) {
 					m.addedNodes.forEach( function ( node ) {
 						if ( node.nodeType !== 1 ) return;
-						if ( node.classList && node.classList.contains( 'ace-magic-text' ) ) {
+						if (
+							node.classList &&
+							(
+								node.classList.contains( 'ace-magic-text' ) ||
+								node.classList.contains( 'ace-magic-btn--sparkles' )
+							)
+						) {
 							attachListeners( node.parentElement );
 						} else if ( node.querySelectorAll ) {
 							attachListeners( node );

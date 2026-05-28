@@ -461,6 +461,49 @@ background-position: 170% center, 100% center;
 }
 }
 
+// Active swatch highlight (shared by magic text popover and button inspector)
+.ace-magic-gradient-picker__swatch.is-active {
+	border-color: #1e1e1e;
+	outline: 2px solid #1e1e1e;
+	outline-offset: 1px;
+}
+
+// Magic button background — gradient shimmer on the button link
+.ace-magic-btn .wp-block-button__link {
+	background:
+		linear-gradient(
+			120deg,
+			transparent 25%,
+			rgba(255, 255, 255, 0.35) 50%,
+			transparent 75%
+		),
+		var(
+			--ace-magic-gradient,
+			linear-gradient(
+				90deg,
+				#ff6b6b,
+				#ffd93d,
+				#6bcb77,
+				#4d96ff,
+				#a78bfa,
+				#ff6b6b
+			)
+		) !important;
+	background-size: 320% 100%, 200% auto !important;
+	animation: ace-btn-magic-shimmer 3s ease-in-out infinite alternate !important;
+	border-color: transparent !important;
+	color: #fff !important;
+}
+
+@keyframes ace-btn-magic-shimmer {
+	0% {
+		background-position: -70% center, 0% center;
+	}
+	100% {
+		background-position: 170% center, 100% center;
+	}
+}
+
 .ace-magic-gradient-picker {
 padding: 12px;
 min-width: 200px;
