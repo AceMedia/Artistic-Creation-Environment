@@ -3723,10 +3723,16 @@ const withArtisticButtonClass = createHigherOrderComponent(
 					...artStyle,
 				},
 			};
+			// Strip any previously-saved ace-artistic-btn* / ace-magic-btn* classes
+			// so changing type (e.g. magic→plasma) never leaves stale sparkles behind.
+			const strippedClassName = ( props.className || '' )
+				.split( ' ' )
+				.filter( ( c ) => ! c.startsWith( 'ace-artistic-btn' ) && ! c.startsWith( 'ace-magic-btn' ) )
+				.join( ' ' );
 			return (
 				<BlockListBlock
 					{ ...props }
-					className={ [ props.className, extraClasses ]
+					className={ [ strippedClassName, extraClasses ]
 						.filter( Boolean )
 						.join( ' ' ) }
 					wrapperProps={ wrapperProps }
@@ -3756,7 +3762,12 @@ addFilter(
 		}
 		const artStyle = getArtisticBtnStyle( attributes );
 		const dataAttrs = getArtisticBtnDataAttrs( attributes );
-		const existingClassName = element.props?.className || '';
+		// Strip stale ace-artistic-btn* / ace-magic-btn* before adding fresh ones —
+		// prevents old sparkles/type classes lingering when type changes.
+		const existingClassName = ( element.props?.className || '' )
+			.split( ' ' )
+			.filter( ( c ) => ! c.startsWith( 'ace-artistic-btn' ) && ! c.startsWith( 'ace-magic-btn' ) )
+			.join( ' ' );
 		const newClassName = `${ existingClassName } ${ extraClasses }`.trim();
 		const existingStyle = element.props?.style || {};
 		return cloneElement( element, {
