@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState } from '@wordpress/element';
 import { addFilter } from '@wordpress/hooks';
 import { useDispatch, useSelect } from '@wordpress/data';
 import { createHigherOrderComponent, useResizeObserver } from '@wordpress/compose';
+import { registerFormatType, toggleFormat, applyFormat, removeFormat } from '@wordpress/rich-text';
 import {
 	BlockVerticalAlignmentToolbar,
 	BlockControls,
@@ -12,6 +13,7 @@ import {
 	InnerBlocks,
 	MediaUpload,
 	MediaUploadCheck,
+	RichTextToolbarButton,
 	useBlockProps,
 	useInnerBlocksProps,
 	useSettings,
@@ -20,6 +22,7 @@ import {
 	Button,
 	Notice,
 	PanelBody,
+	Popover,
 	RangeControl,
 	ResizableBox,
 	SelectControl,
@@ -37,6 +40,11 @@ const defaults = pluginData.defaults || {};
 const effectCatalog = pluginData.effects || {};
 const FLUID_EFFECT = 'liquid-splash';
 const ASCII_EFFECT = 'ascii-world';
+const AURORA_EFFECT = 'aurora-flow';
+const CONSTELLATION_EFFECT = 'particle-constellation';
+const TOPO_EFFECT = 'neon-topography';
+const CAUSTICS_EFFECT = 'glass-caustics';
+const DUST_EFFECT = 'magnetic-dust';
 
 const QUALITY_OPTIONS = [
 	{ label: __( 'High', 'artistic-creation-environment' ), value: 1024 },
@@ -247,6 +255,36 @@ const EFFECT_OPTIONS = [
 			effectCatalog[ ASCII_EFFECT ]?.label ||
 			__( 'ASCII World', 'artistic-creation-environment' ),
 		value: ASCII_EFFECT,
+	},
+	{
+		label:
+			effectCatalog[ AURORA_EFFECT ]?.label ||
+			__( 'Aurora Flow', 'artistic-creation-environment' ),
+		value: AURORA_EFFECT,
+	},
+	{
+		label:
+			effectCatalog[ CONSTELLATION_EFFECT ]?.label ||
+			__( 'Particle Constellation', 'artistic-creation-environment' ),
+		value: CONSTELLATION_EFFECT,
+	},
+	{
+		label:
+			effectCatalog[ TOPO_EFFECT ]?.label ||
+			__( 'Neon Topography', 'artistic-creation-environment' ),
+		value: TOPO_EFFECT,
+	},
+	{
+		label:
+			effectCatalog[ CAUSTICS_EFFECT ]?.label ||
+			__( 'Glass Caustics', 'artistic-creation-environment' ),
+		value: CAUSTICS_EFFECT,
+	},
+	{
+		label:
+			effectCatalog[ DUST_EFFECT ]?.label ||
+			__( 'Magnetic Dust', 'artistic-creation-environment' ),
+		value: DUST_EFFECT,
 	},
 ];
 
@@ -544,6 +582,38 @@ const ATTRIBUTE_DEFINITIONS = {
 		type: 'string',
 		default: 'top',
 	},
+	// --- Aurora Flow ---
+	aceCreativeAuroraSpeed: { type: 'number', default: 1.0 },
+	aceCreativeAuroraPalette: { type: 'string', default: 'aurora' },
+	aceCreativeAuroraIntensity: { type: 'number', default: 1.0 },
+	aceCreativeAuroraBands: { type: 'number', default: 5 },
+	aceCreativeAuroraPointerInfluence: { type: 'number', default: 0.5 },
+	// --- Particle Constellation ---
+	aceCreativeConstellationCount: { type: 'number', default: 120 },
+	aceCreativeConstellationConnectDistance: { type: 'number', default: 160 },
+	aceCreativeConstellationPointerMode: { type: 'string', default: 'attract' },
+	aceCreativeConstellationParticleColor: { type: 'string', default: '#a5b4fc' },
+	aceCreativeConstellationLineColor: { type: 'string', default: '#818cf8' },
+	aceCreativeConstellationSpeed: { type: 'number', default: 0.5 },
+	// --- Neon Topography ---
+	aceCreativeTopoSpeed: { type: 'number', default: 1.0 },
+	aceCreativeTopoLineDensity: { type: 'number', default: 8 },
+	aceCreativeTopoColorScheme: { type: 'string', default: 'cyan' },
+	aceCreativeTopoPointerInfluence: { type: 'number', default: 0.6 },
+	aceCreativeTopoGlow: { type: 'number', default: 1.0 },
+	// --- Glass Caustics ---
+	aceCreativeCausticsSpeed: { type: 'number', default: 0.8 },
+	aceCreativeCausticsRefraction: { type: 'number', default: 1.0 },
+	aceCreativeCausticsColorTemp: { type: 'string', default: 'cool' },
+	aceCreativeCausticsPointerInfluence: { type: 'number', default: 0.6 },
+	aceCreativeCausticsBrightness: { type: 'number', default: 1.2 },
+	// --- Magnetic Dust ---
+	aceCreativeDustParticleCount: { type: 'number', default: 600 },
+	aceCreativeDustFieldSpeed: { type: 'number', default: 0.0004 },
+	aceCreativeDustFieldScale: { type: 'number', default: 0.003 },
+	aceCreativeDustTrailFade: { type: 'number', default: 0.06 },
+	aceCreativeDustColor: { type: 'string', default: '#b8a8f8' },
+	aceCreativeDustPointerMode: { type: 'string', default: 'attract' },
 };
 
 const resolveValue = ( attributes, key ) =>
@@ -808,6 +878,26 @@ const getRuntimeFactory = ( effect ) => {
 
 	if ( effect === FLUID_EFFECT ) {
 		return window.ArtisticCreationEnvironmentFluid;
+	}
+
+	if ( effect === AURORA_EFFECT ) {
+		return window.ArtisticCreationEnvironmentAurora;
+	}
+
+	if ( effect === CONSTELLATION_EFFECT ) {
+		return window.ArtisticCreationEnvironmentConstellation;
+	}
+
+	if ( effect === TOPO_EFFECT ) {
+		return window.ArtisticCreationEnvironmentTopo;
+	}
+
+	if ( effect === CAUSTICS_EFFECT ) {
+		return window.ArtisticCreationEnvironmentCaustics;
+	}
+
+	if ( effect === DUST_EFFECT ) {
+		return window.ArtisticCreationEnvironmentDust;
 	}
 
 	return null;
@@ -1110,6 +1200,63 @@ const getEffectConfig = ( attributes = {}, options = {} ) => {
 	}
 
 	if ( effect !== FLUID_EFFECT ) {
+		if ( effect === AURORA_EFFECT ) {
+			return {
+				...baseConfig,
+				auroraSpeed: resolveValue( attributes, 'aceCreativeAuroraSpeed' ),
+				auroraPalette: resolveValue( attributes, 'aceCreativeAuroraPalette' ),
+				auroraIntensity: resolveValue( attributes, 'aceCreativeAuroraIntensity' ),
+				auroraBands: resolveValue( attributes, 'aceCreativeAuroraBands' ),
+				auroraPointerInfluence: resolveValue( attributes, 'aceCreativeAuroraPointerInfluence' ),
+			};
+		}
+
+		if ( effect === CONSTELLATION_EFFECT ) {
+			return {
+				...baseConfig,
+				constellationCount: resolveValue( attributes, 'aceCreativeConstellationCount' ),
+				constellationConnectDistance: resolveValue( attributes, 'aceCreativeConstellationConnectDistance' ),
+				constellationPointerMode: resolveValue( attributes, 'aceCreativeConstellationPointerMode' ),
+				constellationParticleColor: resolveValue( attributes, 'aceCreativeConstellationParticleColor' ),
+				constellationLineColor: resolveValue( attributes, 'aceCreativeConstellationLineColor' ),
+				constellationSpeed: resolveValue( attributes, 'aceCreativeConstellationSpeed' ),
+			};
+		}
+
+		if ( effect === TOPO_EFFECT ) {
+			return {
+				...baseConfig,
+				topoSpeed: resolveValue( attributes, 'aceCreativeTopoSpeed' ),
+				topoLineDensity: resolveValue( attributes, 'aceCreativeTopoLineDensity' ),
+				topoColorScheme: resolveValue( attributes, 'aceCreativeTopoColorScheme' ),
+				topoPointerInfluence: resolveValue( attributes, 'aceCreativeTopoPointerInfluence' ),
+				topoGlow: resolveValue( attributes, 'aceCreativeTopoGlow' ),
+			};
+		}
+
+		if ( effect === CAUSTICS_EFFECT ) {
+			return {
+				...baseConfig,
+				causticsSpeed: resolveValue( attributes, 'aceCreativeCausticsSpeed' ),
+				causticsRefraction: resolveValue( attributes, 'aceCreativeCausticsRefraction' ),
+				causticsColorTemp: resolveValue( attributes, 'aceCreativeCausticsColorTemp' ),
+				causticsPointerInfluence: resolveValue( attributes, 'aceCreativeCausticsPointerInfluence' ),
+				causticsBrightness: resolveValue( attributes, 'aceCreativeCausticsBrightness' ),
+			};
+		}
+
+		if ( effect === DUST_EFFECT ) {
+			return {
+				...baseConfig,
+				dustParticleCount: resolveValue( attributes, 'aceCreativeDustParticleCount' ),
+				dustFieldSpeed: resolveValue( attributes, 'aceCreativeDustFieldSpeed' ),
+				dustFieldScale: resolveValue( attributes, 'aceCreativeDustFieldScale' ),
+				dustTrailFade: resolveValue( attributes, 'aceCreativeDustTrailFade' ),
+				dustColor: resolveValue( attributes, 'aceCreativeDustColor' ),
+				dustPointerMode: resolveValue( attributes, 'aceCreativeDustPointerMode' ),
+			};
+		}
+
 		return baseConfig;
 	}
 
@@ -1446,6 +1593,11 @@ const CreativeBlockEdit = ( props = {} ) => {
 		typeof getRuntimeFactory( effectConfig.effect ) === 'function';
 	const isAsciiEffect = effectConfig.effect === ASCII_EFFECT;
 	const isFluidEffect = effectConfig.effect === FLUID_EFFECT;
+	const isAuroraEffect = effectConfig.effect === AURORA_EFFECT;
+	const isConstellationEffect = effectConfig.effect === CONSTELLATION_EFFECT;
+	const isTopoEffect = effectConfig.effect === TOPO_EFFECT;
+	const isCausticsEffect = effectConfig.effect === CAUSTICS_EFFECT;
+	const isDustEffect = effectConfig.effect === DUST_EFFECT;
 	const currentMinHeight = getMinHeightValue( attributes );
 	const rawBlockProps = useBlockProps( {
 		ref: blockRef,
@@ -1868,6 +2020,238 @@ const CreativeBlockEdit = ( props = {} ) => {
 									onChange={ setValue( 'aceCreativeAsciiInvert' ) }
 								/>
 							) }
+						</>
+					) }
+
+					{ isAuroraEffect && (
+						<>
+							<RangeControl
+								label={ __( 'Speed', 'artistic-creation-environment' ) }
+								min={ 0.1 }
+								max={ 3 }
+								step={ 0.05 }
+								value={ effectConfig.auroraSpeed }
+								onChange={ setValue( 'aceCreativeAuroraSpeed' ) }
+							/>
+							<SelectControl
+								label={ __( 'Colour palette', 'artistic-creation-environment' ) }
+								value={ effectConfig.auroraPalette || 'aurora' }
+								options={ [
+									{ label: __( 'Aurora', 'artistic-creation-environment' ), value: 'aurora' },
+									{ label: __( 'Sunset', 'artistic-creation-environment' ), value: 'sunset' },
+									{ label: __( 'Deep space', 'artistic-creation-environment' ), value: 'deepspace' },
+								] }
+								onChange={ setValue( 'aceCreativeAuroraPalette' ) }
+							/>
+							<RangeControl
+								label={ __( 'Intensity', 'artistic-creation-environment' ) }
+								min={ 0.1 }
+								max={ 2 }
+								step={ 0.05 }
+								value={ effectConfig.auroraIntensity }
+								onChange={ setValue( 'aceCreativeAuroraIntensity' ) }
+							/>
+							<RangeControl
+								label={ __( 'Bands', 'artistic-creation-environment' ) }
+								min={ 2 }
+								max={ 8 }
+								step={ 1 }
+								value={ effectConfig.auroraBands }
+								onChange={ setValue( 'aceCreativeAuroraBands' ) }
+							/>
+							<RangeControl
+								label={ __( 'Pointer influence', 'artistic-creation-environment' ) }
+								min={ 0 }
+								max={ 1 }
+								step={ 0.05 }
+								value={ effectConfig.auroraPointerInfluence }
+								onChange={ setValue( 'aceCreativeAuroraPointerInfluence' ) }
+							/>
+						</>
+					) }
+
+					{ isConstellationEffect && (
+						<>
+							<RangeControl
+								label={ __( 'Particle count', 'artistic-creation-environment' ) }
+								min={ 20 }
+								max={ 400 }
+								step={ 10 }
+								value={ effectConfig.constellationCount }
+								onChange={ setValue( 'aceCreativeConstellationCount' ) }
+							/>
+							<RangeControl
+								label={ __( 'Connect distance', 'artistic-creation-environment' ) }
+								min={ 60 }
+								max={ 320 }
+								step={ 10 }
+								value={ effectConfig.constellationConnectDistance }
+								onChange={ setValue( 'aceCreativeConstellationConnectDistance' ) }
+							/>
+							<SelectControl
+								label={ __( 'Pointer mode', 'artistic-creation-environment' ) }
+								value={ effectConfig.constellationPointerMode || 'attract' }
+								options={ [
+									{ label: __( 'Attract', 'artistic-creation-environment' ), value: 'attract' },
+									{ label: __( 'Repel', 'artistic-creation-environment' ), value: 'repel' },
+									{ label: __( 'None', 'artistic-creation-environment' ), value: 'none' },
+								] }
+								onChange={ setValue( 'aceCreativeConstellationPointerMode' ) }
+							/>
+							<RangeControl
+								label={ __( 'Speed', 'artistic-creation-environment' ) }
+								min={ 0.1 }
+								max={ 3 }
+								step={ 0.1 }
+								value={ effectConfig.constellationSpeed }
+								onChange={ setValue( 'aceCreativeConstellationSpeed' ) }
+							/>
+							<p>{ __( 'Particle colour', 'artistic-creation-environment' ) }</p>
+							<ColorPalette
+								colors={ themeColors }
+								value={ effectConfig.constellationParticleColor }
+								onChange={ ( v ) => setAttributes( { aceCreativeConstellationParticleColor: v || '#a5b4fc' } ) }
+								clearable={ false }
+							/>
+							<p>{ __( 'Line colour', 'artistic-creation-environment' ) }</p>
+							<ColorPalette
+								colors={ themeColors }
+								value={ effectConfig.constellationLineColor }
+								onChange={ ( v ) => setAttributes( { aceCreativeConstellationLineColor: v || '#818cf8' } ) }
+								clearable={ false }
+							/>
+						</>
+					) }
+
+					{ isTopoEffect && (
+						<>
+							<RangeControl
+								label={ __( 'Speed', 'artistic-creation-environment' ) }
+								min={ 0.1 }
+								max={ 3 }
+								step={ 0.05 }
+								value={ effectConfig.topoSpeed }
+								onChange={ setValue( 'aceCreativeTopoSpeed' ) }
+							/>
+							<RangeControl
+								label={ __( 'Line density', 'artistic-creation-environment' ) }
+								min={ 3 }
+								max={ 20 }
+								step={ 1 }
+								value={ effectConfig.topoLineDensity }
+								onChange={ setValue( 'aceCreativeTopoLineDensity' ) }
+							/>
+							<SelectControl
+								label={ __( 'Colour scheme', 'artistic-creation-environment' ) }
+								value={ effectConfig.topoColorScheme || 'cyan' }
+								options={ [
+									{ label: __( 'Cyan', 'artistic-creation-environment' ), value: 'cyan' },
+									{ label: __( 'Magenta', 'artistic-creation-environment' ), value: 'magenta' },
+									{ label: __( 'Gold', 'artistic-creation-environment' ), value: 'gold' },
+								] }
+								onChange={ setValue( 'aceCreativeTopoColorScheme' ) }
+							/>
+							<RangeControl
+								label={ __( 'Glow', 'artistic-creation-environment' ) }
+								min={ 0 }
+								max={ 2 }
+								step={ 0.1 }
+								value={ effectConfig.topoGlow }
+								onChange={ setValue( 'aceCreativeTopoGlow' ) }
+							/>
+							<RangeControl
+								label={ __( 'Pointer influence', 'artistic-creation-environment' ) }
+								min={ 0 }
+								max={ 1 }
+								step={ 0.05 }
+								value={ effectConfig.topoPointerInfluence }
+								onChange={ setValue( 'aceCreativeTopoPointerInfluence' ) }
+							/>
+						</>
+					) }
+
+					{ isCausticsEffect && (
+						<>
+							<RangeControl
+								label={ __( 'Speed', 'artistic-creation-environment' ) }
+								min={ 0.1 }
+								max={ 3 }
+								step={ 0.05 }
+								value={ effectConfig.causticsSpeed }
+								onChange={ setValue( 'aceCreativeCausticsSpeed' ) }
+							/>
+							<RangeControl
+								label={ __( 'Refraction scale', 'artistic-creation-environment' ) }
+								min={ 0.3 }
+								max={ 2.5 }
+								step={ 0.1 }
+								value={ effectConfig.causticsRefraction }
+								onChange={ setValue( 'aceCreativeCausticsRefraction' ) }
+							/>
+							<SelectControl
+								label={ __( 'Colour temperature', 'artistic-creation-environment' ) }
+								value={ effectConfig.causticsColorTemp || 'cool' }
+								options={ [
+									{ label: __( 'Cool aqua', 'artistic-creation-environment' ), value: 'cool' },
+									{ label: __( 'Warm gold', 'artistic-creation-environment' ), value: 'warm' },
+									{ label: __( 'Neutral silver', 'artistic-creation-environment' ), value: 'neutral' },
+								] }
+								onChange={ setValue( 'aceCreativeCausticsColorTemp' ) }
+							/>
+							<RangeControl
+								label={ __( 'Brightness', 'artistic-creation-environment' ) }
+								min={ 0.3 }
+								max={ 3 }
+								step={ 0.1 }
+								value={ effectConfig.causticsBrightness }
+								onChange={ setValue( 'aceCreativeCausticsBrightness' ) }
+							/>
+							<RangeControl
+								label={ __( 'Pointer influence', 'artistic-creation-environment' ) }
+								min={ 0 }
+								max={ 1 }
+								step={ 0.05 }
+								value={ effectConfig.causticsPointerInfluence }
+								onChange={ setValue( 'aceCreativeCausticsPointerInfluence' ) }
+							/>
+						</>
+					) }
+
+					{ isDustEffect && (
+						<>
+							<RangeControl
+								label={ __( 'Particle count', 'artistic-creation-environment' ) }
+								min={ 100 }
+								max={ 1500 }
+								step={ 50 }
+								value={ effectConfig.dustParticleCount }
+								onChange={ setValue( 'aceCreativeDustParticleCount' ) }
+							/>
+							<SelectControl
+								label={ __( 'Pointer mode', 'artistic-creation-environment' ) }
+								value={ effectConfig.dustPointerMode || 'attract' }
+								options={ [
+									{ label: __( 'Attract', 'artistic-creation-environment' ), value: 'attract' },
+									{ label: __( 'Repel', 'artistic-creation-environment' ), value: 'repel' },
+									{ label: __( 'None', 'artistic-creation-environment' ), value: 'none' },
+								] }
+								onChange={ setValue( 'aceCreativeDustPointerMode' ) }
+							/>
+							<RangeControl
+								label={ __( 'Trail fade', 'artistic-creation-environment' ) }
+								min={ 0.01 }
+								max={ 0.3 }
+								step={ 0.01 }
+								value={ effectConfig.dustTrailFade }
+								onChange={ setValue( 'aceCreativeDustTrailFade' ) }
+							/>
+							<p>{ __( 'Dust colour', 'artistic-creation-environment' ) }</p>
+							<ColorPalette
+								colors={ themeColors }
+								value={ effectConfig.dustColor }
+								onChange={ ( v ) => setAttributes( { aceCreativeDustColor: v || '#b8a8f8' } ) }
+								clearable={ false }
+							/>
 						</>
 					) }
 
@@ -2840,4 +3224,132 @@ registerBlockType( 'artistic-creation-environment/creative', {
 			save: CreativeBlockDeprecatedDirectSave,
 		},
 	],
+} );
+
+
+// ─── Scramble Text inline format ─────────────────────────────────────────────
+
+const SCRAMBLE_FORMAT_TYPE = 'ace/scramble-text';
+
+const scrambleIcon = (
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+<rect x="3" y="5.5" width="4" height="2" rx="0.5" />
+<rect x="9" y="5.5" width="7" height="2" rx="0.5" />
+<rect x="3" y="11" width="9" height="2" rx="0.5" />
+<rect x="14" y="11" width="4" height="2" rx="0.5" />
+<rect x="3" y="16.5" width="6" height="2" rx="0.5" />
+<rect x="11" y="16.5" width="7" height="2" rx="0.5" />
+</svg>
+);
+
+registerFormatType( SCRAMBLE_FORMAT_TYPE, {
+title: __( 'Scramble text', 'artistic-creation-environment' ),
+tagName: 'span',
+className: 'ace-scramble-text',
+edit( { isActive, onChange, value } ) {
+return (
+<RichTextToolbarButton
+icon={ scrambleIcon }
+title={ __( 'Scramble text', 'artistic-creation-environment' ) }
+onClick={ () =>
+onChange( toggleFormat( value, { type: SCRAMBLE_FORMAT_TYPE } ) )
+}
+isActive={ isActive }
+/>
+);
+},
+} );
+
+// ─── Magic Text inline format ─────────────────────────────────────────────────
+
+const MAGIC_FORMAT_TYPE = 'ace/magic-text';
+const MAGIC_RAINBOW = 'linear-gradient(90deg,#ff6b6b,#ffd93d,#6bcb77,#4d96ff,#a78bfa,#ff6b6b)';
+
+const magicIcon = (
+	<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+		<path d="M12 2 L13 7 L18 6 L14 9.5 L16 14.5 L12 11.5 L8 14.5 L10 9.5 L6 6 L11 7 Z" />
+		<path d="M5 18 L5.6 20 L7.5 19.5 L6 21 L7.5 22.5 L5.6 22 L5 24 L4.4 22 L2.5 22.5 L4 21 L2.5 19.5 L4.4 20 Z" />
+		<path d="M19 15 L19.5 17 L21.5 16.5 L20 18 L21.5 19.5 L19.5 19 L19 21 L18.5 19 L16.5 19.5 L18 18 L16.5 16.5 L18.5 17 Z" />
+	</svg>
+);
+
+function MagicTextButton( { isActive, onChange, value } ) {
+	const [ isOpen, setIsOpen ] = useState( false );
+	const [ themeGradients ] = useSettings( 'color.gradients' );
+
+	const gradients = [
+		{
+			name: __( 'Rainbow (default)', 'artistic-creation-environment' ),
+			gradient: MAGIC_RAINBOW,
+		},
+		...( themeGradients || [] ),
+	];
+
+	return (
+		<>
+			<RichTextToolbarButton
+				icon={ magicIcon }
+				title={ __( 'Magic text', 'artistic-creation-environment' ) }
+				onClick={ () => setIsOpen( ( v ) => ! v ) }
+				isActive={ isActive }
+			/>
+			{ isOpen && (
+				<Popover
+					className="ace-magic-gradient-popover"
+					onClose={ () => setIsOpen( false ) }
+					focusOnMount="firstElement"
+					placement="bottom-start"
+				>
+					<div className="ace-magic-gradient-picker">
+						<p className="ace-magic-gradient-picker__label">
+							{ __( 'Gradient', 'artistic-creation-environment' ) }
+						</p>
+						<div className="ace-magic-gradient-picker__swatches">
+							{ gradients.map( ( { name, gradient } ) => (
+								<button
+									key={ gradient }
+									className="ace-magic-gradient-picker__swatch"
+									title={ name }
+									style={ { background: gradient } }
+									onClick={ () => {
+										onChange(
+											applyFormat( value, {
+												type: MAGIC_FORMAT_TYPE,
+												attributes: {
+													style: `--ace-magic-gradient:${ gradient };`,
+												},
+											} )
+										);
+										setIsOpen( false );
+									} }
+								/>
+							) ) }
+						</div>
+						{ isActive && (
+							<Button
+								isDestructive
+								variant="link"
+								onClick={ () => {
+									onChange( removeFormat( value, MAGIC_FORMAT_TYPE ) );
+									setIsOpen( false );
+								} }
+							>
+								{ __( 'Remove', 'artistic-creation-environment' ) }
+							</Button>
+						) }
+					</div>
+				</Popover>
+			) }
+		</>
+	);
+}
+
+registerFormatType( MAGIC_FORMAT_TYPE, {
+	title: __( 'Magic text', 'artistic-creation-environment' ),
+	tagName: 'span',
+	className: 'ace-magic-text',
+	attributes: {
+		style: 'style',
+	},
+	edit: MagicTextButton,
 } );

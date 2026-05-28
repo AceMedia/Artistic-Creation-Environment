@@ -45,6 +45,26 @@
 			return window.ArtisticCreationEnvironmentFluid;
 		}
 
+		if (effect === 'aurora-flow') {
+			return window.ArtisticCreationEnvironmentAurora;
+		}
+
+		if (effect === 'particle-constellation') {
+			return window.ArtisticCreationEnvironmentConstellation;
+		}
+
+		if (effect === 'neon-topography') {
+			return window.ArtisticCreationEnvironmentTopo;
+		}
+
+		if (effect === 'glass-caustics') {
+			return window.ArtisticCreationEnvironmentCaustics;
+		}
+
+		if (effect === 'magnetic-dust') {
+			return window.ArtisticCreationEnvironmentDust;
+		}
+
 		return null;
 	}
 

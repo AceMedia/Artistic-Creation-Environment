@@ -99,12 +99,19 @@ class Artistic_Creation_Environment {
 	 * @return void
 	 */
 	public function register_assets() {
-		$script_path           = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/index.js';
-		$asset_path            = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/index.asset.php';
-		$style_path            = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/index.css';
-		$runtime_script_path   = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/fluid-simulation.js';
-		$ascii_script_path     = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/ascii-world.js';
-		$frontend_script_path  = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/frontend.js';
+		$script_path                   = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/index.js';
+		$asset_path                    = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/index.asset.php';
+		$style_path                    = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/index.css';
+		$runtime_script_path           = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/fluid-simulation.js';
+		$ascii_script_path             = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/ascii-world.js';
+		$aurora_script_path            = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/aurora-flow.js';
+		$constellation_script_path     = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/particle-constellation.js';
+		$topo_script_path              = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/neon-topography.js';
+		$caustics_script_path          = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/glass-caustics.js';
+		$dust_script_path              = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/magnetic-dust.js';
+		$frontend_script_path          = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/frontend.js';
+		$scramble_script_path          = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/scramble-text.js';
+		$magic_script_path             = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/magic-text.js';
 
 		if ( file_exists( $script_path ) && file_exists( $asset_path ) ) {
 			$asset = require $asset_path;
@@ -116,6 +123,26 @@ class Artistic_Creation_Environment {
 
 			if ( file_exists( $ascii_script_path ) ) {
 				$editor_dependencies[] = 'artistic-creation-environment-ascii';
+			}
+
+			if ( file_exists( $aurora_script_path ) ) {
+				$editor_dependencies[] = 'artistic-creation-environment-aurora';
+			}
+
+			if ( file_exists( $constellation_script_path ) ) {
+				$editor_dependencies[] = 'artistic-creation-environment-constellation';
+			}
+
+			if ( file_exists( $topo_script_path ) ) {
+				$editor_dependencies[] = 'artistic-creation-environment-topo';
+			}
+
+			if ( file_exists( $caustics_script_path ) ) {
+				$editor_dependencies[] = 'artistic-creation-environment-caustics';
+			}
+
+			if ( file_exists( $dust_script_path ) ) {
+				$editor_dependencies[] = 'artistic-creation-environment-dust';
 			}
 
 			wp_register_script(
@@ -168,17 +195,92 @@ class Artistic_Creation_Environment {
 			);
 		}
 
+		if ( file_exists( $aurora_script_path ) ) {
+			wp_register_script(
+				'artistic-creation-environment-aurora',
+				ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/aurora-flow.js',
+				array(),
+				(string) filemtime( $aurora_script_path ),
+				true
+			);
+		}
+
+		if ( file_exists( $constellation_script_path ) ) {
+			wp_register_script(
+				'artistic-creation-environment-constellation',
+				ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/particle-constellation.js',
+				array(),
+				(string) filemtime( $constellation_script_path ),
+				true
+			);
+		}
+
+		if ( file_exists( $topo_script_path ) ) {
+			wp_register_script(
+				'artistic-creation-environment-topo',
+				ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/neon-topography.js',
+				array(),
+				(string) filemtime( $topo_script_path ),
+				true
+			);
+		}
+
+		if ( file_exists( $caustics_script_path ) ) {
+			wp_register_script(
+				'artistic-creation-environment-caustics',
+				ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/glass-caustics.js',
+				array(),
+				(string) filemtime( $caustics_script_path ),
+				true
+			);
+		}
+
+		if ( file_exists( $dust_script_path ) ) {
+			wp_register_script(
+				'artistic-creation-environment-dust',
+				ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/magnetic-dust.js',
+				array(),
+				(string) filemtime( $dust_script_path ),
+				true
+			);
+		}
+
 		if ( file_exists( $frontend_script_path ) ) {
 			wp_register_script(
 				'artistic-creation-environment-frontend',
 				ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/frontend.js',
 				array_filter(
 					array(
-						file_exists( $runtime_script_path ) ? 'artistic-creation-environment-runtime' : null,
-						file_exists( $ascii_script_path ) ? 'artistic-creation-environment-ascii' : null,
+						file_exists( $runtime_script_path )       ? 'artistic-creation-environment-runtime'       : null,
+						file_exists( $ascii_script_path )         ? 'artistic-creation-environment-ascii'         : null,
+						file_exists( $aurora_script_path )        ? 'artistic-creation-environment-aurora'        : null,
+						file_exists( $constellation_script_path ) ? 'artistic-creation-environment-constellation' : null,
+						file_exists( $topo_script_path )          ? 'artistic-creation-environment-topo'          : null,
+						file_exists( $caustics_script_path )      ? 'artistic-creation-environment-caustics'      : null,
+						file_exists( $dust_script_path )          ? 'artistic-creation-environment-dust'          : null,
 					)
 				),
 				(string) filemtime( $frontend_script_path ),
+				true
+			);
+		}
+
+		if ( file_exists( $scramble_script_path ) ) {
+			wp_register_script(
+				'artistic-creation-environment-scramble',
+				ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/scramble-text.js',
+				array(),
+				(string) filemtime( $scramble_script_path ),
+				true
+			);
+		}
+
+		if ( file_exists( $magic_script_path ) ) {
+			wp_register_script(
+				'artistic-creation-environment-magic',
+				ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/magic-text.js',
+				array(),
+				(string) filemtime( $magic_script_path ),
 				true
 			);
 		}
@@ -192,6 +294,14 @@ class Artistic_Creation_Environment {
 	public function enqueue_editor_assets() {
 		if ( wp_script_is( 'artistic-creation-environment-editor', 'registered' ) ) {
 			wp_enqueue_script( 'artistic-creation-environment-editor' );
+		}
+
+		if ( wp_script_is( 'artistic-creation-environment-scramble', 'registered' ) ) {
+			wp_enqueue_script( 'artistic-creation-environment-scramble' );
+		}
+
+		if ( wp_script_is( 'artistic-creation-environment-magic', 'registered' ) ) {
+			wp_enqueue_script( 'artistic-creation-environment-magic' );
 		}
 
 		$this->enqueue_shared_style();
@@ -267,7 +377,7 @@ class Artistic_Creation_Environment {
 		$input    = is_array( $input ) ? $input : array();
 
 		$default_effect = isset( $input['default_effect'] ) ? sanitize_key( $input['default_effect'] ) : $defaults['default_effect'];
-		if ( ! in_array( $default_effect, array( 'liquid-splash', 'ascii-world', '' ), true ) ) {
+		if ( ! in_array( $default_effect, array( 'liquid-splash', 'ascii-world', 'aurora-flow', 'particle-constellation', 'neon-topography', 'glass-caustics', 'magnetic-dust', '' ), true ) ) {
 			$default_effect = $defaults['default_effect'];
 		}
 
@@ -355,6 +465,11 @@ class Artistic_Creation_Environment {
 											<option value="" <?php selected( $settings['default_effect'], '' ); ?>><?php esc_html_e( 'None', 'artistic-creation-environment' ); ?></option>
 											<option value="liquid-splash" <?php selected( $settings['default_effect'], 'liquid-splash' ); ?>><?php esc_html_e( 'Liquid Splash', 'artistic-creation-environment' ); ?></option>
 											<option value="ascii-world" <?php selected( $settings['default_effect'], 'ascii-world' ); ?>><?php esc_html_e( 'ASCII World', 'artistic-creation-environment' ); ?></option>
+											<option value="aurora-flow" <?php selected( $settings['default_effect'], 'aurora-flow' ); ?>><?php esc_html_e( 'Aurora Flow', 'artistic-creation-environment' ); ?></option>
+											<option value="particle-constellation" <?php selected( $settings['default_effect'], 'particle-constellation' ); ?>><?php esc_html_e( 'Particle Constellation', 'artistic-creation-environment' ); ?></option>
+											<option value="neon-topography" <?php selected( $settings['default_effect'], 'neon-topography' ); ?>><?php esc_html_e( 'Neon Topography', 'artistic-creation-environment' ); ?></option>
+											<option value="glass-caustics" <?php selected( $settings['default_effect'], 'glass-caustics' ); ?>><?php esc_html_e( 'Glass Caustics', 'artistic-creation-environment' ); ?></option>
+											<option value="magnetic-dust" <?php selected( $settings['default_effect'], 'magnetic-dust' ); ?>><?php esc_html_e( 'Magnetic Dust', 'artistic-creation-environment' ); ?></option>
 										</select>
 										<p class="description"><?php esc_html_e( 'Used when a Creative block chooses “Site default”.', 'artistic-creation-environment' ); ?></p>
 									</td>
@@ -571,8 +686,13 @@ class Artistic_Creation_Environment {
 	 */
 	private function get_editor_preview_urls() {
 		return array(
-			'liquid-splash' => $this->get_effect_file_url( 'liquid-splash' ),
-			'ascii-world'   => $this->get_effect_file_url( 'ascii-world' ),
+			'liquid-splash'          => $this->get_effect_file_url( 'liquid-splash' ),
+			'ascii-world'            => $this->get_effect_file_url( 'ascii-world' ),
+			'aurora-flow'            => $this->get_effect_file_url( 'aurora-flow' ),
+			'particle-constellation' => $this->get_effect_file_url( 'particle-constellation' ),
+			'neon-topography'        => $this->get_effect_file_url( 'neon-topography' ),
+			'glass-caustics'         => $this->get_effect_file_url( 'glass-caustics' ),
+			'magnetic-dust'          => $this->get_effect_file_url( 'magnetic-dust' ),
 		);
 	}
 
@@ -601,32 +721,32 @@ class Artistic_Creation_Environment {
 			),
 			'aurora-flow' => array(
 				'label'        => __( 'Aurora Flow', 'artistic-creation-environment' ),
-				'status'       => 'concept',
-				'status_label' => __( 'Concept', 'artistic-creation-environment' ),
+				'status'       => 'available',
+				'status_label' => __( 'Live now', 'artistic-creation-environment' ),
 				'summary'      => __( 'Layered polar ribbons with colour-driven turbulence and soft atmospheric bloom.', 'artistic-creation-environment' ),
 				'inputs'       => array( 'Touch', 'Tilt', 'Scroll' ),
 				'performance'  => __( 'Ideal for fragment-shader rendering with low CPU overhead.', 'artistic-creation-environment' ),
 			),
 			'glass-caustics' => array(
 				'label'        => __( 'Glass Caustics', 'artistic-creation-environment' ),
-				'status'       => 'concept',
-				'status_label' => __( 'Concept', 'artistic-creation-environment' ),
+				'status'       => 'available',
+				'status_label' => __( 'Live now', 'artistic-creation-environment' ),
 				'summary'      => __( 'Refracted light patterns that behave like sun through water or cut crystal.', 'artistic-creation-environment' ),
 				'inputs'       => array( 'Pointer', 'Tilt' ),
 				'performance'  => __( 'Best as a medium-resolution buffer with upscale bloom.', 'artistic-creation-environment' ),
 			),
 			'neon-topography' => array(
 				'label'        => __( 'Neon Topography', 'artistic-creation-environment' ),
-				'status'       => 'concept',
-				'status_label' => __( 'Concept', 'artistic-creation-environment' ),
+				'status'       => 'available',
+				'status_label' => __( 'Live now', 'artistic-creation-environment' ),
 				'summary'      => __( 'Animated contour lines that ripple like a responsive digital landscape.', 'artistic-creation-environment' ),
 				'inputs'       => array( 'Pointer', 'Audio', 'Tilt' ),
 				'performance'  => __( 'Line rendering is lightweight and works well on large hero sections.', 'artistic-creation-environment' ),
 			),
 			'particle-constellation' => array(
 				'label'        => __( 'Particle Constellation', 'artistic-creation-environment' ),
-				'status'       => 'concept',
-				'status_label' => __( 'Concept', 'artistic-creation-environment' ),
+				'status'       => 'available',
+				'status_label' => __( 'Live now', 'artistic-creation-environment' ),
 				'summary'      => __( 'Magnetic starfields with filament trails and proximity-driven flares.', 'artistic-creation-environment' ),
 				'inputs'       => array( 'Pointer', 'Touch', 'Webcam gestures' ),
 				'performance'  => __( 'Can scale line counts dynamically for high-refresh displays.', 'artistic-creation-environment' ),
@@ -649,8 +769,8 @@ class Artistic_Creation_Environment {
 			),
 			'magnetic-dust' => array(
 				'label'        => __( 'Magnetic Dust', 'artistic-creation-environment' ),
-				'status'       => 'concept',
-				'status_label' => __( 'Concept', 'artistic-creation-environment' ),
+				'status'       => 'available',
+				'status_label' => __( 'Live now', 'artistic-creation-environment' ),
 				'summary'      => __( 'Fine metallic particles gather into streams and reveal invisible force fields.', 'artistic-creation-environment' ),
 				'inputs'       => array( 'Touch', 'Pointer', 'Webcam gestures' ),
 				'performance'  => __( 'Requires adaptive batching but stays smooth on modern GPUs.', 'artistic-creation-environment' ),
@@ -855,18 +975,28 @@ class Artistic_Creation_Environment {
 			return '';
 		}
 
-		if ( 'liquid-splash' !== $effect ) {
+		$simple_effects = array(
+			'liquid-splash'          => 'liquid-splash.html',
+			'aurora-flow'            => 'aurora-flow.html',
+			'particle-constellation' => 'particle-constellation.html',
+			'neon-topography'        => 'neon-topography.html',
+			'glass-caustics'         => 'glass-caustics.html',
+			'magnetic-dust'          => 'magnetic-dust.html',
+		);
+
+		if ( ! isset( $simple_effects[ $effect ] ) ) {
 			return '';
 		}
 
-		$build_path = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/liquid-splash.html';
+		$filename    = $simple_effects[ $effect ];
+		$build_path  = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/' . $filename;
 		if ( file_exists( $build_path ) ) {
-			return ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/liquid-splash.html';
+			return ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/' . $filename;
 		}
 
-		$source_path = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'src/liquid-splash.html';
+		$source_path = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'src/' . $filename;
 		if ( file_exists( $source_path ) ) {
-			return ARTISTIC_CREATION_ENVIRONMENT_URL . 'src/liquid-splash.html';
+			return ARTISTIC_CREATION_ENVIRONMENT_URL . 'src/' . $filename;
 		}
 
 		return '';
@@ -891,16 +1021,21 @@ class Artistic_Creation_Environment {
 	private function enqueue_frontend_assets() {
 		$this->enqueue_shared_style();
 
-		if ( wp_script_is( 'artistic-creation-environment-runtime', 'registered' ) ) {
-			wp_enqueue_script( 'artistic-creation-environment-runtime' );
-		}
-
-		if ( wp_script_is( 'artistic-creation-environment-ascii', 'registered' ) ) {
-			wp_enqueue_script( 'artistic-creation-environment-ascii' );
-		}
-
-		if ( wp_script_is( 'artistic-creation-environment-frontend', 'registered' ) ) {
-			wp_enqueue_script( 'artistic-creation-environment-frontend' );
+		foreach ( array(
+			'artistic-creation-environment-runtime',
+			'artistic-creation-environment-ascii',
+			'artistic-creation-environment-aurora',
+			'artistic-creation-environment-constellation',
+			'artistic-creation-environment-topo',
+			'artistic-creation-environment-caustics',
+			'artistic-creation-environment-dust',
+			'artistic-creation-environment-frontend',
+			'artistic-creation-environment-scramble',
+			'artistic-creation-environment-magic',
+		) as $handle ) {
+			if ( wp_script_is( $handle, 'registered' ) ) {
+				wp_enqueue_script( $handle );
+			}
 		}
 	}
 
