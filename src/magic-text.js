@@ -39,6 +39,31 @@
 			'  0%{opacity:1;transform:scale(1) rotate(0deg);}',
 			'  100%{opacity:0;transform:scale(0.1) rotate(160deg);}',
 			'}',
+			// Aurora: elongated oval drifting upward
+			'@keyframes ace-aurora-glow-out{',
+			'  0%{opacity:0.85;transform:translateY(0) scaleX(1);}',
+			'  100%{opacity:0;transform:translateY(-20px) scaleX(0.7);}',
+			'}',
+			// Neon: short arc flash
+			'@keyframes ace-neon-arc-out{',
+			'  0%{opacity:0;} 10%{opacity:1;} 100%{opacity:0;}',
+			'}',
+			// Prism: diamond shard spin-fade
+			'@keyframes ace-prism-shard-out{',
+			'  0%{opacity:0.9;transform:rotate(45deg) scale(1);}',
+			'  100%{opacity:0;transform:rotate(145deg) scale(0.15);}',
+			'}',
+			// Plasma: orb pulse-fade
+			'@keyframes ace-plasma-orb-out{',
+			'  0%{opacity:0.8;transform:scale(0.5);}',
+			'  30%{opacity:0.95;transform:scale(1.2);}',
+			'  100%{opacity:0;transform:scale(0.3);}',
+			'}',
+			// Inferno: rising ember
+			'@keyframes ace-ember-out{',
+			'  0%{opacity:1;transform:translateY(0) scale(1);}',
+			'  100%{opacity:0;transform:translateY(-16px) scale(0.25);}',
+			'}',
 		].join( '' );
 		document.head.appendChild( style );
 	}
@@ -119,6 +144,117 @@
 		return colors;
 	}
 
+	// ── Type-specific particle creators ──────────────────────────────────────
+
+	function createAuroraGlow( x, y, colors ) {
+		var w = 7 + Math.random() * 7;
+		var h = w * ( 2.5 + Math.random() * 1.5 );
+		var color = colors[ Math.floor( Math.random() * colors.length ) ];
+		var ox = ( Math.random() - 0.5 ) * 30;
+		var oy = ( Math.random() - 0.5 ) * 16;
+		var el = document.createElement( 'div' );
+		el.style.cssText =
+			'position:absolute;pointer-events:none;' +
+			'width:' + w + 'px;height:' + h + 'px;' +
+			'left:' + ( x + ox - w / 2 ) + 'px;top:' + ( y + oy - h / 2 ) + 'px;' +
+			'border-radius:50%;' +
+			'background:radial-gradient(ellipse at center,' + color + ' 0%,transparent 72%);' +
+			'animation:ace-aurora-glow-out 0.9s ease-out forwards;';
+		getContainer().appendChild( el );
+		setTimeout( function () { if ( el.parentNode ) el.parentNode.removeChild( el ); }, 1000 );
+	}
+
+	function createNeonArc( x, y, colors ) {
+		var len = 10 + Math.random() * 16;
+		var ang = Math.random() * 360;
+		var color = colors[ Math.floor( Math.random() * colors.length ) ] || '#00f5ff';
+		var el = document.createElement( 'div' );
+		el.style.cssText =
+			'position:absolute;pointer-events:none;' +
+			'width:' + len + 'px;height:2px;' +
+			'left:' + ( x - len / 2 ) + 'px;top:' + ( y - 1 ) + 'px;' +
+			'background:' + color + ';border-radius:2px;' +
+			'box-shadow:0 0 4px ' + color + ',0 0 8px ' + color + ';' +
+			'transform-origin:center;transform:rotate(' + ang + 'deg);' +
+			'animation:ace-neon-arc-out 0.45s ease-out forwards;';
+		getContainer().appendChild( el );
+		setTimeout( function () { if ( el.parentNode ) el.parentNode.removeChild( el ); }, 500 );
+	}
+
+	function createPrismShard( x, y, colors ) {
+		var size = 8 + Math.random() * 8;
+		var hue = Math.random() * 360;
+		var ox = ( Math.random() - 0.5 ) * 28;
+		var oy = ( Math.random() - 0.5 ) * 28;
+		var el = document.createElement( 'div' );
+		el.style.cssText =
+			'position:absolute;pointer-events:none;' +
+			'width:' + size + 'px;height:' + size + 'px;' +
+			'left:' + ( x + ox - size / 2 ) + 'px;top:' + ( y + oy - size / 2 ) + 'px;' +
+			'background:linear-gradient(135deg,' +
+			'  hsl(' + hue + ',100%,68%),' +
+			'  hsl(' + ( ( hue + 90 ) % 360 ) + ',100%,72%),' +
+			'  hsl(' + ( ( hue + 180 ) % 360 ) + ',100%,68%));' +
+			'animation:ace-prism-shard-out 0.7s ease-out forwards;';
+		getContainer().appendChild( el );
+		setTimeout( function () { if ( el.parentNode ) el.parentNode.removeChild( el ); }, 750 );
+	}
+
+	function createPlasmaOrb( x, y, colors ) {
+		var size = 10 + Math.random() * 12;
+		var color = colors[ Math.floor( Math.random() * colors.length ) ];
+		var ox = ( Math.random() - 0.5 ) * 24;
+		var oy = ( Math.random() - 0.5 ) * 24;
+		var el = document.createElement( 'div' );
+		el.style.cssText =
+			'position:absolute;pointer-events:none;' +
+			'width:' + size + 'px;height:' + size + 'px;' +
+			'left:' + ( x + ox - size / 2 ) + 'px;top:' + ( y + oy - size / 2 ) + 'px;' +
+			'border-radius:50%;' +
+			'background:radial-gradient(circle,' + color + ' 0%,transparent 72%);' +
+			'animation:ace-plasma-orb-out 0.6s ease-out forwards;';
+		getContainer().appendChild( el );
+		setTimeout( function () { if ( el.parentNode ) el.parentNode.removeChild( el ); }, 700 );
+	}
+
+	function createEmber( x, y, colors ) {
+		var size = 4 + Math.random() * 4;
+		var color = colors[ Math.floor( Math.random() * colors.length ) ];
+		var ox = ( Math.random() - 0.5 ) * 20;
+		var oy = ( Math.random() - 0.5 ) * 8;
+		var el = document.createElement( 'div' );
+		el.style.cssText =
+			'position:absolute;pointer-events:none;' +
+			'width:' + size + 'px;height:' + size + 'px;' +
+			'left:' + ( x + ox - size / 2 ) + 'px;top:' + ( y + oy - size / 2 ) + 'px;' +
+			'border-radius:50%;' +
+			'background:' + color + ';' +
+			'box-shadow:0 0 ' + ( size * 1.6 ) + 'px ' + color + ';' +
+			'animation:ace-ember-out 0.55s ease-out forwards;';
+		getContainer().appendChild( el );
+		setTimeout( function () { if ( el.parentNode ) el.parentNode.removeChild( el ); }, 600 );
+	}
+
+	// Routes to the correct particle creator based on the element's artistic type.
+	// Only magic (text or button-with-sparkles) gets star sparkles.
+	function createTypeParticle( x, y, el ) {
+		var type = getArtisticType( el );
+		var colors = getElementColors( el );
+		if ( ! type || type === 'magic' ) {
+			createSparkle( x, y, colors );
+		} else if ( type === 'aurora' ) {
+			createAuroraGlow( x, y, colors );
+		} else if ( type === 'neon' ) {
+			createNeonArc( x, y, colors );
+		} else if ( type === 'prism' ) {
+			createPrismShard( x, y, colors );
+		} else if ( type === 'plasma' ) {
+			createPlasmaOrb( x, y, colors );
+		} else if ( type === 'inferno' ) {
+			createEmber( x, y, colors );
+		}
+	}
+
 	function createSparkle( x, y, colors ) {
 		// Non-uniform size: skewed toward mid-range with occasional large stars
 		var size = 12 + Math.pow( Math.random(), 0.65 ) * 24; // ~12–36 px
@@ -152,7 +288,7 @@
 		if ( _throttle ) return;
 		_throttle = setTimeout( function () { _throttle = null; }, 35 );
 		if ( Math.random() > 0.4 ) {
-			createSparkle( e.clientX, e.clientY, getElementColors( el ) );
+			createTypeParticle( e.clientX, e.clientY, el );
 		}
 	}
 
@@ -176,17 +312,20 @@
 				_ambientInterval = null;
 				return;
 			}
-			// Spawn 1–2 sparkles randomly distributed across elements
+			// Spawn 1–2 particles randomly distributed across elements
 			var count = Math.random() > 0.55 ? 2 : 1;
 			for ( var i = 0; i < count; i++ ) {
 				var el = els[ Math.floor( Math.random() * els.length ) ];
 				var rect = el.getBoundingClientRect();
 				if ( rect.width < 1 || rect.height < 1 ) continue;
-				createSparkle(
-					rect.left + Math.random() * rect.width,
-					rect.top + Math.random() * rect.height,
-					getElementColors( el )
-				);
+				var cx = rect.left + Math.random() * rect.width;
+				var cy = rect.top + Math.random() * rect.height;
+				// Buttons in this list always have .ace-artistic-btn--sparkles (magic only)
+				if ( el.classList && el.classList.contains( 'ace-artistic-btn--sparkles' ) ) {
+					createSparkle( cx, cy, getElementColors( el ) );
+				} else {
+					createTypeParticle( cx, cy, el );
+				}
 			}
 		}, 220 );
 	}
