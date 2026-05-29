@@ -453,7 +453,7 @@
 						startAmbient();
 					} );
 				} );
-			} ).observe( document.body, { childList: true, subtree: true } );
+			} ).observe( document.body || document.documentElement, { childList: true, subtree: true } );
 		}
 	}
 
