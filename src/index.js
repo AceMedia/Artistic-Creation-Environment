@@ -3269,6 +3269,13 @@ const PRISM_FORMAT_TYPE   = 'ace/prism-text';
 const PLASMA_FORMAT_TYPE  = 'ace/plasma-text';
 const INFERNO_FORMAT_TYPE = 'ace/inferno-text';
 
+// Shared defaults — single source of truth for both button attributes and text toolbar.
+const ACE_AURORA_DEFAULTS  = { palette: 'aurora', intensity: 1.2, speed: 1.0, bands: 5 };
+const ACE_NEON_DEFAULTS    = { scheme: 'cyan', density: 8.0, glow: 1.2, sparks: 'medium' };
+const ACE_PRISM_DEFAULTS   = { speed: 1.0, spread: 1.0 };
+const ACE_PLASMA_DEFAULTS  = { speed: 1.0, turbulence: 1.0 };
+const ACE_INFERNO_DEFAULTS = { intensity: 1.0, colorTemp: 'hot', whips: 'normal' };
+
 const MAGIC_RAINBOW = 'linear-gradient(90deg,#ff6b6b,#ffd93d,#6bcb77,#4d96ff,#a78bfa,#ff6b6b)';
 
 const NEON_COLOR_OPTIONS = [
@@ -3279,13 +3286,26 @@ const NEON_COLOR_OPTIONS = [
 	{ name: __( 'Violet', 'artistic-creation-environment' ), color: '#bf5fff' },
 ];
 
+const AURORA_TEXT_PALETTE_OPTIONS = [
+	{ name: __( 'Aurora', 'artistic-creation-environment' ),     value: 'aurora',    colors: [ '#4ade80', '#22d3ee', '#34d399', '#818cf8', '#c084fc', '#4ade80' ] },
+	{ name: __( 'Sunset', 'artistic-creation-environment' ),     value: 'sunset',    colors: [ '#f97316', '#ec4899', '#f59e0b', '#ef4444', '#fb923c', '#f97316' ] },
+	{ name: __( 'Deep Space', 'artistic-creation-environment' ), value: 'deepspace', colors: [ '#8b5cf6', '#a855f7', '#6366f1', '#c084fc', '#4338ca', '#8b5cf6' ] },
+];
+
+const INFERNO_TEXT_COLOR_OPTIONS = [
+	{ name: __( 'Hot',    'artistic-creation-environment' ), value: 'hot',  colors: [ '#dc2626', '#f97316', '#fbbf24' ] },
+	{ name: __( 'Warm',   'artistic-creation-environment' ), value: 'warm', colors: [ '#f97316', '#fb923c', '#fed7aa' ] },
+	{ name: __( 'Cool',   'artistic-creation-environment' ), value: 'cool', colors: [ '#1d4ed8', '#2563eb', '#93c5fd' ] },
+	{ name: __( 'Embers', 'artistic-creation-environment' ), value: 'dark', colors: [ '#7f1d1d', '#b45309', '#d97706' ] },
+];
+
 const ARTISTIC_TEXT_TYPES = [
-	{ value: 'magic',   label: '✨ Magic',   formatType: MAGIC_FORMAT_TYPE,   hasGradient: true  },
-	{ value: 'aurora',  label: '🌌 Aurora',  formatType: AURORA_FORMAT_TYPE                      },
-	{ value: 'neon',    label: '⚡ Neon',    formatType: NEON_FORMAT_TYPE,    hasNeonColor: true  },
-	{ value: 'prism',   label: '🌈 Prism',   formatType: PRISM_FORMAT_TYPE                       },
-	{ value: 'plasma',  label: '⚗️ Plasma',  formatType: PLASMA_FORMAT_TYPE                      },
-	{ value: 'inferno', label: '🔥 Inferno', formatType: INFERNO_FORMAT_TYPE                     },
+	{ value: 'magic',   label: '✨ Magic',   formatType: MAGIC_FORMAT_TYPE,   hasGradient: true        },
+	{ value: 'aurora',  label: '🌌 Aurora',  formatType: AURORA_FORMAT_TYPE,  hasAuroraPalette: true   },
+	{ value: 'neon',    label: '⚡ Neon',    formatType: NEON_FORMAT_TYPE,    hasNeonColor: true       },
+	{ value: 'prism',   label: '🌈 Prism',   formatType: PRISM_FORMAT_TYPE                             },
+	{ value: 'plasma',  label: '⚗️ Plasma',  formatType: PLASMA_FORMAT_TYPE                            },
+	{ value: 'inferno', label: '🔥 Inferno', formatType: INFERNO_FORMAT_TYPE, hasInfernoColor: true    },
 ];
 
 const ALL_ARTISTIC_FORMAT_TYPES = ARTISTIC_TEXT_TYPES.map( ( t ) => t.formatType );
@@ -3335,6 +3355,18 @@ function ArtisticTextButton( { value, onChange } ) {
 				.replace( ';', '' )
 				.trim()
 			: '';
+
+	const activeAuroraPalette =
+		activeFormat?.type === AURORA_FORMAT_TYPE
+			? ( ( activeFormat?.attributes?.style || '' )
+				.match( /--ace-aurora-palette:\s*([^;]+)/ ) || [] )[ 1 ] || ACE_AURORA_DEFAULTS.palette
+			: ACE_AURORA_DEFAULTS.palette;
+
+	const activeInfernoColor =
+		activeFormat?.type === INFERNO_FORMAT_TYPE
+			? ( ( activeFormat?.attributes?.style || '' )
+				.match( /--ace-inferno-color:\s*([^;]+)/ ) || [] )[ 1 ] || ACE_INFERNO_DEFAULTS.colorTemp
+			: ACE_INFERNO_DEFAULTS.colorTemp;
 
 	function removeAllArtistic( v ) {
 		return ALL_ARTISTIC_FORMAT_TYPES.reduce(
@@ -3440,7 +3472,59 @@ function ArtisticTextButton( { value, onChange } ) {
 							</>
 						) }
 
-						{ ! currentConfig?.hasGradient && ! currentConfig?.hasNeonColor && (
+						{ currentConfig?.hasAuroraPalette && (
+							<>
+								<p className="ace-magic-gradient-picker__label">
+									{ __( 'Palette', 'artistic-creation-environment' ) }
+								</p>
+								<div className="ace-magic-gradient-picker__swatches">
+									{ AURORA_TEXT_PALETTE_OPTIONS.map( ( { name, value, colors } ) => (
+										<button
+											key={ value }
+											className={ [
+												'ace-magic-gradient-picker__swatch',
+												activeAuroraPalette === value ? 'is-active' : '',
+											].filter( Boolean ).join( ' ' ) }
+											title={ name }
+											style={ { background: `linear-gradient(135deg,${ colors.join( ',' ) })` } }
+											onClick={ () =>
+												applyArtistic( AURORA_FORMAT_TYPE, {
+													style: `--ace-aurora-palette:${ value };--ace-aurora-gradient:linear-gradient(90deg,${ colors.join( ',' ) });`,
+												} )
+											}
+										/>
+									) ) }
+								</div>
+							</>
+						) }
+
+						{ currentConfig?.hasInfernoColor && (
+							<>
+								<p className="ace-magic-gradient-picker__label">
+									{ __( 'Flame colour', 'artistic-creation-environment' ) }
+								</p>
+								<div className="ace-magic-gradient-picker__swatches">
+									{ INFERNO_TEXT_COLOR_OPTIONS.map( ( { name, value, colors } ) => (
+										<button
+											key={ value }
+											className={ [
+												'ace-magic-gradient-picker__swatch',
+												activeInfernoColor === value ? 'is-active' : '',
+											].filter( Boolean ).join( ' ' ) }
+											title={ name }
+											style={ { background: `linear-gradient(135deg,${ colors.join( ',' ) })` } }
+											onClick={ () =>
+												applyArtistic( INFERNO_FORMAT_TYPE, {
+													style: `--ace-inferno-color:${ value };--ace-inferno-gradient:linear-gradient(90deg,${ colors.join( ',' ) });`,
+												} )
+											}
+										/>
+									) ) }
+								</div>
+							</>
+						) }
+
+						{ ! currentConfig?.hasGradient && ! currentConfig?.hasNeonColor && ! currentConfig?.hasAuroraPalette && ! currentConfig?.hasInfernoColor && (
 							<Button
 								variant="primary"
 								onClick={ () => applyArtistic( currentConfig.formatType ) }
@@ -3476,6 +3560,7 @@ registerFormatType( AURORA_FORMAT_TYPE, {
 	title: __( 'Aurora text', 'artistic-creation-environment' ),
 	tagName: 'span',
 	className: 'ace-aurora-text',
+	attributes: { style: 'style' },
 } );
 
 registerFormatType( NEON_FORMAT_TYPE, {
@@ -3501,6 +3586,7 @@ registerFormatType( INFERNO_FORMAT_TYPE, {
 	title: __( 'Inferno text', 'artistic-creation-environment' ),
 	tagName: 'span',
 	className: 'ace-inferno-text',
+	attributes: { style: 'style' },
 } );
 
 // ─── Artistic Button Background ───────────────────────────────────────────────
@@ -3541,26 +3627,21 @@ addFilter(
 				aceMagicBgSparkles: { type: 'boolean', default: false },
 				aceArtisticBtnType: { type: 'string', default: '' },
 				aceNeonColor: { type: 'string', default: '#00f5ff' }, // kept for text format compat
-				aceAuroraPalette: { type: 'string', default: 'aurora' },
-				aceNeonScheme: { type: 'string', default: 'cyan' },
-				// Aurora controls
-				aceAuroraIntensity: { type: 'number', default: 1.2 },
-				aceAuroraSpeed: { type: 'number', default: 1.0 },
-				aceAuroraBands: { type: 'number', default: 5 },
-				// Neon controls
-				aceNeonDensity: { type: 'number', default: 8.0 },
-				aceNeonGlow: { type: 'number', default: 1.2 },
-				aceNeonSparks: { type: 'string', default: 'medium' },
-				// Prism controls
-				acePrismSpeed: { type: 'number', default: 1.0 },
-				acePrismSpread: { type: 'number', default: 1.0 },
-				// Plasma controls
-				acePlasmaSpeed: { type: 'number', default: 1.0 },
-				acePlasmaTurbulence: { type: 'number', default: 1.0 },
-				// Inferno controls
-				aceInfernoIntensity: { type: 'number', default: 1.0 },
-				aceInfernoColorTemp: { type: 'string', default: 'hot' },
-				aceInfernoWhips: { type: 'string', default: 'normal' },
+				aceAuroraPalette:     { type: 'string',  default: ACE_AURORA_DEFAULTS.palette },
+				aceNeonScheme:        { type: 'string',  default: ACE_NEON_DEFAULTS.scheme },
+				aceAuroraIntensity:   { type: 'number',  default: ACE_AURORA_DEFAULTS.intensity },
+				aceAuroraSpeed:       { type: 'number',  default: ACE_AURORA_DEFAULTS.speed },
+				aceAuroraBands:       { type: 'number',  default: ACE_AURORA_DEFAULTS.bands },
+				aceNeonDensity:       { type: 'number',  default: ACE_NEON_DEFAULTS.density },
+				aceNeonGlow:          { type: 'number',  default: ACE_NEON_DEFAULTS.glow },
+				aceNeonSparks:        { type: 'string',  default: ACE_NEON_DEFAULTS.sparks },
+				acePrismSpeed:        { type: 'number',  default: ACE_PRISM_DEFAULTS.speed },
+				acePrismSpread:       { type: 'number',  default: ACE_PRISM_DEFAULTS.spread },
+				acePlasmaSpeed:       { type: 'number',  default: ACE_PLASMA_DEFAULTS.speed },
+				acePlasmaTurbulence:  { type: 'number',  default: ACE_PLASMA_DEFAULTS.turbulence },
+				aceInfernoIntensity:  { type: 'number',  default: ACE_INFERNO_DEFAULTS.intensity },
+				aceInfernoColorTemp:  { type: 'string',  default: ACE_INFERNO_DEFAULTS.colorTemp },
+				aceInfernoWhips:      { type: 'string',  default: ACE_INFERNO_DEFAULTS.whips },
 				// All-effect controls
 				aceEffectBlendBg: { type: 'number', default: 1.0 },
 				aceEffectBlendMode: { type: 'string', default: '' },

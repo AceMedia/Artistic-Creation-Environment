@@ -31,6 +31,56 @@
 			'  0%{background-position:-70% center,0% center;}',
 			'  100%{background-position:170% center,100% center;}',
 			'}',
+			// Aurora text fill
+			'.ace-aurora-text{',
+			'  background:',
+			'    linear-gradient(120deg,transparent 25%,rgba(255,255,255,0.3) 50%,transparent 75%),',
+			'    var(--ace-aurora-gradient,linear-gradient(90deg,#4ade80,#22d3ee,#34d399,#818cf8,#c084fc,#4ade80));',
+			'  background-size:320% 100%,200% auto;',
+			'  -webkit-background-clip:text;background-clip:text;',
+			'  -webkit-text-fill-color:transparent;',
+			'  animation:ace-magic-shimmer 4s ease-in-out infinite alternate;',
+			'  display:inline;',
+			'}',
+			// Neon text fill
+			'.ace-neon-text{',
+			'  color:var(--ace-neon-color,#00f5ff);',
+			'  -webkit-text-fill-color:var(--ace-neon-color,#00f5ff);',
+			'  text-shadow:0 0 6px var(--ace-neon-color,#00f5ff),0 0 18px var(--ace-neon-color,#00f5ff),0 0 36px var(--ace-neon-color,#00f5ff);',
+			'  display:inline;',
+			'}',
+			// Prism text fill
+			'.ace-prism-text{',
+			'  background:linear-gradient(90deg,#ff0080,#ff8c00,#ffe600,#00e5ff,#0070ff,#a550ff,#ff0080);',
+			'  background-size:200% auto;',
+			'  -webkit-background-clip:text;background-clip:text;',
+			'  -webkit-text-fill-color:transparent;',
+			'  animation:ace-prism-sweep 3s linear infinite;',
+			'  display:inline;',
+			'}',
+			'@keyframes ace-prism-sweep{0%{background-position:0% center;}100%{background-position:200% center;}}',
+			// Plasma text fill
+			'.ace-plasma-text{',
+			'  background:',
+			'    linear-gradient(120deg,transparent 25%,rgba(255,255,255,0.2) 50%,transparent 75%),',
+			'    linear-gradient(90deg,#7c3aed,#db2777,#a78bfa,#e879f9,#818cf8,#7c3aed);',
+			'  background-size:320% 100%,200% auto;',
+			'  -webkit-background-clip:text;background-clip:text;',
+			'  -webkit-text-fill-color:transparent;',
+			'  animation:ace-magic-shimmer 3.5s ease-in-out infinite alternate;',
+			'  display:inline;',
+			'}',
+			// Inferno text fill
+			'.ace-inferno-text{',
+			'  background:',
+			'    linear-gradient(120deg,transparent 25%,rgba(255,200,100,0.3) 50%,transparent 75%),',
+			'    var(--ace-inferno-gradient,linear-gradient(90deg,#dc2626,#f97316,#fbbf24,#fef3c7,#ef4444,#dc2626));',
+			'  background-size:320% 100%,200% auto;',
+			'  -webkit-background-clip:text;background-clip:text;',
+			'  -webkit-text-fill-color:transparent;',
+			'  animation:ace-magic-shimmer 2.5s ease-in-out infinite alternate;',
+			'  display:inline;',
+			'}',
 			'.ace-sparkle-layer{position:fixed;top:0;left:0;width:100%;height:100%;',
 			'  pointer-events:none;overflow:visible;z-index:99999;}',
 			'.ace-sparkle{position:absolute;pointer-events:none;',
@@ -85,6 +135,19 @@
 		inferno: [ '#dc2626', '#f97316', '#fbbf24', '#fef3c7', '#ef4444', '#ffffff' ],
 	};
 
+	var AURORA_TYPE_COLORS = {
+		aurora:    [ '#4ade80', '#22d3ee', '#34d399', '#818cf8', '#c084fc', '#ffffff' ],
+		sunset:    [ '#f97316', '#ec4899', '#f59e0b', '#ef4444', '#fb923c', '#ffffff' ],
+		deepspace: [ '#8b5cf6', '#a855f7', '#6366f1', '#c084fc', '#4338ca', '#ffffff' ],
+	};
+
+	var INFERNO_TYPE_COLORS = {
+		hot:  [ '#dc2626', '#f97316', '#fbbf24', '#fef3c7', '#ef4444', '#ffffff' ],
+		warm: [ '#f97316', '#fb923c', '#fed7aa', '#fef3c7', '#fdba74', '#ffffff' ],
+		cool: [ '#1d4ed8', '#2563eb', '#60a5fa', '#93c5fd', '#bfdbfe', '#ffffff' ],
+		dark: [ '#7f1d1d', '#991b1b', '#b45309', '#d97706', '#78350f', '#ffffff' ],
+	};
+
 	// Maps text-format class names to their type keys.
 	var TEXT_CLASS_TYPE_MAP = {
 		'ace-aurora-text':  'aurora',
@@ -112,7 +175,8 @@
 	// Extract hex colours from the element's CSS variables / classes.
 	// Result is cached on the element so getComputedStyle is only called once per element.
 	function getElementColors( el ) {
-		if ( el._aceColors ) return el._aceColors;
+		var isTextSpan = el.tagName && el.tagName.toLowerCase() === 'span';
+		if ( ! isTextSpan && el._aceColors ) return el._aceColors;
 		var colors = [];
 		var type = getArtisticType( el );
 
@@ -123,6 +187,20 @@
 					colors = neonColor ? [ neonColor, '#ffffff' ] : [ '#00f5ff', '#ffffff' ];
 				} catch ( e ) {
 					colors = [ '#00f5ff', '#ffffff' ];
+				}
+			} else if ( type === 'aurora' ) {
+				try {
+					var auroraPalette = getComputedStyle( el ).getPropertyValue( '--ace-aurora-palette' ).trim() || 'aurora';
+					colors = AURORA_TYPE_COLORS[ auroraPalette ] || AURORA_TYPE_COLORS.aurora;
+				} catch ( e ) {
+					colors = AURORA_TYPE_COLORS.aurora;
+				}
+			} else if ( type === 'inferno' ) {
+				try {
+					var infernoColorKey = getComputedStyle( el ).getPropertyValue( '--ace-inferno-color' ).trim() || 'hot';
+					colors = INFERNO_TYPE_COLORS[ infernoColorKey ] || INFERNO_TYPE_COLORS.hot;
+				} catch ( e ) {
+					colors = INFERNO_TYPE_COLORS.hot;
 				}
 			} else {
 				colors = TYPE_COLORS[ type ] || DEFAULT_COLORS;
@@ -140,7 +218,7 @@
 			colors = colors.concat( [ '#ffffff' ] );
 		}
 
-		el._aceColors = colors;
+		if ( ! isTextSpan ) el._aceColors = colors;
 		return colors;
 	}
 
