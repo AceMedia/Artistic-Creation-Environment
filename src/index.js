@@ -3543,6 +3543,27 @@ addFilter(
 				aceNeonColor: { type: 'string', default: '#00f5ff' }, // kept for text format compat
 				aceAuroraPalette: { type: 'string', default: 'aurora' },
 				aceNeonScheme: { type: 'string', default: 'cyan' },
+				// Aurora controls
+				aceAuroraIntensity: { type: 'number', default: 1.2 },
+				aceAuroraSpeed: { type: 'number', default: 1.0 },
+				aceAuroraBands: { type: 'number', default: 5 },
+				// Neon controls
+				aceNeonDensity: { type: 'number', default: 8.0 },
+				aceNeonGlow: { type: 'number', default: 1.2 },
+				aceNeonSparks: { type: 'string', default: 'medium' },
+				// Prism controls
+				acePrismSpeed: { type: 'number', default: 1.0 },
+				acePrismSpread: { type: 'number', default: 1.0 },
+				// Plasma controls
+				acePlasmaSpeed: { type: 'number', default: 1.0 },
+				acePlasmaTurbulence: { type: 'number', default: 1.0 },
+				// Inferno controls
+				aceInfernoIntensity: { type: 'number', default: 1.0 },
+				aceInfernoColorTemp: { type: 'string', default: 'hot' },
+				aceInfernoWhips: { type: 'string', default: 'normal' },
+				// All-effect controls
+				aceEffectBlendBg: { type: 'number', default: 1.0 },
+				aceEffectBlendMode: { type: 'string', default: '' },
 			},
 		};
 	}
@@ -3575,22 +3596,123 @@ function getArtisticBtnStyle( attributes ) {
 
 // Data attributes consumed by ace-btn-effects.js on the frontend.
 function getArtisticBtnDataAttrs( attributes ) {
-	const { aceArtisticBtnType, aceMagicBg, aceAuroraPalette, aceNeonScheme } = attributes;
+	const {
+		aceArtisticBtnType,
+		aceMagicBg,
+		aceAuroraPalette,
+		aceAuroraIntensity,
+		aceAuroraSpeed,
+		aceAuroraBands,
+		aceNeonScheme,
+		aceNeonDensity,
+		aceNeonGlow,
+		aceNeonSparks,
+		acePrismSpeed,
+		acePrismSpread,
+		acePlasmaSpeed,
+		acePlasmaTurbulence,
+		aceInfernoIntensity,
+		aceInfernoColorTemp,
+		aceInfernoWhips,
+		aceEffectBlendBg,
+		aceEffectBlendMode,
+	} = attributes;
 	const type = aceArtisticBtnType || ( aceMagicBg ? 'magic' : '' );
 	const attrs = {};
-	if ( type === 'aurora' && aceAuroraPalette ) {
-		attrs[ 'data-ace-aurora-palette' ] = aceAuroraPalette;
+	if ( ! type || type === 'magic' ) return attrs;
+
+	if ( type === 'aurora' ) {
+		if ( aceAuroraPalette ) attrs[ 'data-ace-aurora-palette' ] = aceAuroraPalette;
+		if ( aceAuroraIntensity != null ) {
+			attrs[ 'data-ace-aurora-intensity' ] = aceAuroraIntensity;
+		}
+		if ( aceAuroraSpeed != null ) attrs[ 'data-ace-aurora-speed' ] = aceAuroraSpeed;
+		if ( aceAuroraBands != null ) attrs[ 'data-ace-aurora-bands' ] = aceAuroraBands;
 	}
-	if ( type === 'neon' && aceNeonScheme ) {
-		attrs[ 'data-ace-neon-scheme' ] = aceNeonScheme;
+	if ( type === 'neon' ) {
+		if ( aceNeonScheme ) attrs[ 'data-ace-neon-scheme' ] = aceNeonScheme;
+		if ( aceNeonDensity != null ) attrs[ 'data-ace-neon-density' ] = aceNeonDensity;
+		if ( aceNeonGlow != null ) attrs[ 'data-ace-neon-glow' ] = aceNeonGlow;
+		if ( aceNeonSparks ) attrs[ 'data-ace-neon-sparks' ] = aceNeonSparks;
 	}
+	if ( type === 'prism' ) {
+		if ( acePrismSpeed != null ) attrs[ 'data-ace-prism-speed' ] = acePrismSpeed;
+		if ( acePrismSpread != null ) attrs[ 'data-ace-prism-spread' ] = acePrismSpread;
+	}
+	if ( type === 'plasma' ) {
+		if ( acePlasmaSpeed != null ) attrs[ 'data-ace-plasma-speed' ] = acePlasmaSpeed;
+		if ( acePlasmaTurbulence != null ) {
+			attrs[ 'data-ace-plasma-turbulence' ] = acePlasmaTurbulence;
+		}
+	}
+	if ( type === 'inferno' ) {
+		if ( aceInfernoIntensity != null ) {
+			attrs[ 'data-ace-inferno-intensity' ] = aceInfernoIntensity;
+		}
+		if ( aceInfernoColorTemp ) attrs[ 'data-ace-inferno-color' ] = aceInfernoColorTemp;
+		if ( aceInfernoWhips ) attrs[ 'data-ace-inferno-whips' ] = aceInfernoWhips;
+	}
+	if ( aceEffectBlendBg != null && aceEffectBlendBg !== 1.0 ) {
+		attrs[ 'data-ace-blend-bg' ] = aceEffectBlendBg;
+	}
+	if ( aceEffectBlendMode ) attrs[ 'data-ace-blend-mode' ] = aceEffectBlendMode;
+
 	return attrs;
 }
 
+const NEON_SPARKS_OPTIONS = [
+	{ label: __( 'Off', 'artistic-creation-environment' ), value: 'off' },
+	{ label: __( 'Light', 'artistic-creation-environment' ), value: 'light' },
+	{ label: __( 'Medium', 'artistic-creation-environment' ), value: 'medium' },
+	{ label: __( 'Heavy', 'artistic-creation-environment' ), value: 'heavy' },
+];
+
+const INFERNO_COLOR_OPTIONS = [
+	{ label: __( 'Hot (white core)', 'artistic-creation-environment' ), value: 'hot' },
+	{ label: __( 'Warm (orange)', 'artistic-creation-environment' ), value: 'warm' },
+	{ label: __( 'Cool (blue flame)', 'artistic-creation-environment' ), value: 'cool' },
+	{ label: __( 'Dark (embers)', 'artistic-creation-environment' ), value: 'dark' },
+];
+
+const INFERNO_WHIPS_OPTIONS = [
+	{ label: __( 'None', 'artistic-creation-environment' ), value: 'off' },
+	{ label: __( 'Light', 'artistic-creation-environment' ), value: 'light' },
+	{ label: __( 'Normal', 'artistic-creation-environment' ), value: 'normal' },
+	{ label: __( 'Heavy', 'artistic-creation-environment' ), value: 'heavy' },
+];
+
+const EFFECT_BLEND_MODE_OPTIONS = [
+	{ label: __( 'None', 'artistic-creation-environment' ), value: '' },
+	{ label: __( 'Screen', 'artistic-creation-environment' ), value: 'screen' },
+	{ label: __( 'Multiply', 'artistic-creation-environment' ), value: 'multiply' },
+	{ label: __( 'Overlay', 'artistic-creation-environment' ), value: 'overlay' },
+	{ label: __( 'Soft light', 'artistic-creation-environment' ), value: 'soft-light' },
+];
+
 function ArtisticButtonControls( { attributes, setAttributes } ) {
 	const [ themeGradients ] = useSettings( 'color.gradients' );
-	const { aceMagicBg, aceMagicBgSparkles, aceArtisticBtnType, aceAuroraPalette, aceNeonScheme } =
-		attributes;
+	const {
+		aceMagicBg,
+		aceMagicBgSparkles,
+		aceArtisticBtnType,
+		aceAuroraPalette,
+		aceAuroraIntensity,
+		aceAuroraSpeed,
+		aceAuroraBands,
+		aceNeonScheme,
+		aceNeonDensity,
+		aceNeonGlow,
+		aceNeonSparks,
+		acePrismSpeed,
+		acePrismSpread,
+		acePlasmaSpeed,
+		acePlasmaTurbulence,
+		aceInfernoIntensity,
+		aceInfernoColorTemp,
+		aceInfernoWhips,
+		aceEffectBlendBg,
+		aceEffectBlendMode,
+	} = attributes;
 
 	const effectiveType = aceArtisticBtnType || ( aceMagicBg ? 'magic' : '' );
 
@@ -3617,6 +3739,9 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 							aceArtisticBtnType: v,
 							aceMagicBg: v === 'magic' ? aceMagicBg : '',
 							aceMagicBgSparkles: v === 'magic' ? aceMagicBgSparkles : false,
+							// Reset type-specific options when type changes
+							aceAuroraPalette: v === 'aurora' ? ( aceAuroraPalette || 'aurora' ) : 'aurora',
+							aceNeonScheme: v === 'neon' ? ( aceNeonScheme || 'cyan' ) : 'cyan',
 						} )
 					}
 				/>
@@ -3655,21 +3780,163 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 				) }
 
 				{ effectiveType === 'aurora' && (
-					<SelectControl
-						label={ __( 'Palette', 'artistic-creation-environment' ) }
-						value={ aceAuroraPalette || 'aurora' }
-						options={ AURORA_PALETTE_OPTIONS }
-						onChange={ ( v ) => setAttributes( { aceAuroraPalette: v } ) }
-					/>
+					<>
+						<SelectControl
+							label={ __( 'Palette', 'artistic-creation-environment' ) }
+							value={ aceAuroraPalette || 'aurora' }
+							options={ AURORA_PALETTE_OPTIONS }
+							onChange={ ( v ) => setAttributes( { aceAuroraPalette: v } ) }
+						/>
+						<RangeControl
+							label={ __( 'Intensity', 'artistic-creation-environment' ) }
+							value={ aceAuroraIntensity != null ? aceAuroraIntensity : 1.2 }
+							min={ 0.3 }
+							max={ 2.5 }
+							step={ 0.1 }
+							onChange={ ( v ) => setAttributes( { aceAuroraIntensity: v } ) }
+						/>
+						<RangeControl
+							label={ __( 'Speed', 'artistic-creation-environment' ) }
+							value={ aceAuroraSpeed != null ? aceAuroraSpeed : 1.0 }
+							min={ 0.2 }
+							max={ 3.0 }
+							step={ 0.1 }
+							onChange={ ( v ) => setAttributes( { aceAuroraSpeed: v } ) }
+						/>
+						<RangeControl
+							label={ __( 'Bands', 'artistic-creation-environment' ) }
+							value={ aceAuroraBands != null ? aceAuroraBands : 5 }
+							min={ 1 }
+							max={ 8 }
+							step={ 1 }
+							onChange={ ( v ) => setAttributes( { aceAuroraBands: v } ) }
+						/>
+					</>
 				) }
 
 				{ effectiveType === 'neon' && (
-					<SelectControl
-						label={ __( 'Colour scheme', 'artistic-creation-environment' ) }
-						value={ aceNeonScheme || 'cyan' }
-						options={ NEON_SCHEME_OPTIONS }
-						onChange={ ( v ) => setAttributes( { aceNeonScheme: v } ) }
-					/>
+					<>
+						<SelectControl
+							label={ __( 'Colour scheme', 'artistic-creation-environment' ) }
+							value={ aceNeonScheme || 'cyan' }
+							options={ NEON_SCHEME_OPTIONS }
+							onChange={ ( v ) => setAttributes( { aceNeonScheme: v } ) }
+						/>
+						<RangeControl
+							label={ __( 'Line density', 'artistic-creation-environment' ) }
+							value={ aceNeonDensity != null ? aceNeonDensity : 8.0 }
+							min={ 3 }
+							max={ 18 }
+							step={ 0.5 }
+							onChange={ ( v ) => setAttributes( { aceNeonDensity: v } ) }
+						/>
+						<RangeControl
+							label={ __( 'Glow', 'artistic-creation-environment' ) }
+							value={ aceNeonGlow != null ? aceNeonGlow : 1.2 }
+							min={ 0.2 }
+							max={ 3.0 }
+							step={ 0.1 }
+							onChange={ ( v ) => setAttributes( { aceNeonGlow: v } ) }
+						/>
+						<SelectControl
+							label={ __( 'Electric sparks', 'artistic-creation-environment' ) }
+							value={ aceNeonSparks || 'medium' }
+							options={ NEON_SPARKS_OPTIONS }
+							onChange={ ( v ) => setAttributes( { aceNeonSparks: v } ) }
+						/>
+					</>
+				) }
+
+				{ effectiveType === 'prism' && (
+					<>
+						<RangeControl
+							label={ __( 'Rotation speed', 'artistic-creation-environment' ) }
+							value={ acePrismSpeed != null ? acePrismSpeed : 1.0 }
+							min={ 0.1 }
+							max={ 3.0 }
+							step={ 0.1 }
+							onChange={ ( v ) => setAttributes( { acePrismSpeed: v } ) }
+						/>
+						<RangeControl
+							label={ __( 'Beam spread', 'artistic-creation-environment' ) }
+							value={ acePrismSpread != null ? acePrismSpread : 1.0 }
+							min={ 0.3 }
+							max={ 2.5 }
+							step={ 0.1 }
+							onChange={ ( v ) => setAttributes( { acePrismSpread: v } ) }
+						/>
+					</>
+				) }
+
+				{ effectiveType === 'plasma' && (
+					<>
+						<RangeControl
+							label={ __( 'Speed', 'artistic-creation-environment' ) }
+							value={ acePlasmaSpeed != null ? acePlasmaSpeed : 1.0 }
+							min={ 0.2 }
+							max={ 3.0 }
+							step={ 0.1 }
+							onChange={ ( v ) => setAttributes( { acePlasmaSpeed: v } ) }
+						/>
+						<RangeControl
+							label={ __( 'Turbulence', 'artistic-creation-environment' ) }
+							value={ acePlasmaTurbulence != null ? acePlasmaTurbulence : 1.0 }
+							min={ 0.3 }
+							max={ 3.0 }
+							step={ 0.1 }
+							onChange={ ( v ) => setAttributes( { acePlasmaTurbulence: v } ) }
+						/>
+					</>
+				) }
+
+				{ effectiveType === 'inferno' && (
+					<>
+						<RangeControl
+							label={ __( 'Fire intensity', 'artistic-creation-environment' ) }
+							value={ aceInfernoIntensity != null ? aceInfernoIntensity : 1.0 }
+							min={ 0.2 }
+							max={ 3.0 }
+							step={ 0.1 }
+							onChange={ ( v ) => setAttributes( { aceInfernoIntensity: v } ) }
+						/>
+						<SelectControl
+							label={ __( 'Flame colour', 'artistic-creation-environment' ) }
+							value={ aceInfernoColorTemp || 'hot' }
+							options={ INFERNO_COLOR_OPTIONS }
+							onChange={ ( v ) => setAttributes( { aceInfernoColorTemp: v } ) }
+						/>
+						<SelectControl
+							label={ __( 'Fire whips', 'artistic-creation-environment' ) }
+							value={ aceInfernoWhips || 'normal' }
+							options={ INFERNO_WHIPS_OPTIONS }
+							onChange={ ( v ) => setAttributes( { aceInfernoWhips: v } ) }
+						/>
+					</>
+				) }
+
+				{ !! effectiveType && effectiveType !== 'magic' && (
+					<>
+						<RangeControl
+							label={ __( 'Effect opacity', 'artistic-creation-environment' ) }
+							help={ __(
+								"Lower values blend the effect with the button's native background colour.",
+								'artistic-creation-environment'
+							) }
+							value={ aceEffectBlendBg != null ? aceEffectBlendBg : 1.0 }
+							min={ 0 }
+							max={ 1 }
+							step={ 0.05 }
+							onChange={ ( v ) => setAttributes( { aceEffectBlendBg: v } ) }
+						/>
+						{ ( aceEffectBlendBg != null ? aceEffectBlendBg : 1.0 ) < 1.0 && (
+							<SelectControl
+								label={ __( 'Blend mode', 'artistic-creation-environment' ) }
+								value={ aceEffectBlendMode || '' }
+								options={ EFFECT_BLEND_MODE_OPTIONS }
+								onChange={ ( v ) => setAttributes( { aceEffectBlendMode: v } ) }
+							/>
+						) }
+					</>
 				) }
 			</PanelBody>
 		</InspectorControls>

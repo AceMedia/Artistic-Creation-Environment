@@ -307,21 +307,6 @@ class Artistic_Creation_Environment {
 		if ( wp_script_is( 'artistic-creation-environment-editor', 'registered' ) ) {
 			wp_enqueue_script( 'artistic-creation-environment-editor' );
 		}
-
-		if ( wp_script_is( 'artistic-creation-environment-scramble', 'registered' ) ) {
-			wp_enqueue_script( 'artistic-creation-environment-scramble' );
-		}
-
-		if ( wp_script_is( 'artistic-creation-environment-magic', 'registered' ) ) {
-			wp_enqueue_script( 'artistic-creation-environment-magic' );
-		}
-
-		// Button WebGL effects need to run in the editor so that
-		// artistic button backgrounds preview correctly in the block editor.
-		if ( wp_script_is( 'artistic-creation-environment-btn-effects', 'registered' ) ) {
-			wp_enqueue_script( 'artistic-creation-environment-btn-effects' );
-		}
-
 		$this->enqueue_shared_style();
 	}
 

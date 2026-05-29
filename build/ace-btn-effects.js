@@ -407,7 +407,9 @@
 			if ( pCanvas.width !== w || pCanvas.height !== h ) { pCanvas.width = w; pCanvas.height = h; }
 			ctx.clearRect( 0, 0, w, h );
 			tick++;
-			if ( tick % 8 === 0 && Math.random() < 0.65 ) { sparks.push( spawnSpark() ); }
+			var sparksMap = { off: 0, light: 0.25, medium: 0.65, heavy: 1.0 };
+			var sparksChance = sparksMap[ cfg.neonSparks ] != null ? sparksMap[ cfg.neonSparks ] : 0.65;
+			if ( sparksChance > 0 && tick % 8 === 0 && Math.random() < sparksChance ) { sparks.push( spawnSpark() ); }
 			if ( mouseX >= 0 && Math.random() < 0.2 ) {
 				sparks.push( spawnSpark(
 					mouseX + ( Math.random() - 0.5 ) * 24,
@@ -560,7 +562,7 @@
 		};
 	}
 
-	function createInfernoParticles( pCanvas, link, wrapper ) {
+	function createInfernoParticles( pCanvas, link, cfg ) {
 		var ctx = pCanvas.getContext( '2d' );
 		if ( ! ctx ) { return null; }
 		var OVERHANG = 55, SIDE = 15;
@@ -576,6 +578,8 @@
 				pCanvas.style.height = h + 'px';
 			}
 		}
+		var whipRateMap = { off: 0, light: 0.008, normal: 0.022, heavy: 0.05 };
+		var whipRate = whipRateMap[ cfg.infernoWhips ] != null ? whipRateMap[ cfg.infernoWhips ] : 0.022;
 		var whips = [];
 		function spawnWhip() {
 			var lw = link.offsetWidth || 200;
@@ -597,7 +601,15 @@
 				life: 0, maxLife: 50 + Math.random() * 40,
 				size: 1.2 + Math.random() * 1.8, hue: 25 + Math.random() * 30 };
 		}
-		for ( var i = 0; i < 5; i++ ) { var wh = spawnWhip(); wh.progress = Math.random(); whips.push( wh ); }
+		var initialWhips = 0;
+		if ( cfg.infernoWhips === 'light' ) {
+			initialWhips = 2;
+		} else if ( cfg.infernoWhips === 'normal' ) {
+			initialWhips = 3;
+		} else if ( cfg.infernoWhips === 'heavy' ) {
+			initialWhips = 5;
+		}
+		for ( var i = 0; i < initialWhips; i++ ) { var wh = spawnWhip(); wh.progress = Math.random(); whips.push( wh ); }
 		for ( var j = 0; j < 8; j++ ) { var em = spawnEmber(); em.life = Math.random() * em.maxLife; embers.push( em ); }
 		var stopped = false, raf = 0;
 		function tick() {
@@ -605,10 +617,11 @@
 			resize();
 			ctx.clearRect( 0, 0, pCanvas.width, pCanvas.height );
 			var now = performance.now() * 0.001;
-			for ( var i = 0; i < whips.length; i++ ) {
+			if ( Math.random() < whipRate ) { whips.push( spawnWhip() ); }
+			for ( var i = whips.length - 1; i >= 0; i-- ) {
 				var p = whips[ i ];
 				p.progress += p.speed;
-				if ( p.progress >= 1.0 ) { whips[ i ] = spawnWhip(); continue; }
+				if ( p.progress >= 1.0 ) { whips.splice( i, 1 ); continue; }
 				var t = p.progress;
 				var alpha = ( t < 0.3 ? t / 0.3 : ( t < 0.6 ? 1.0 : ( 1.0 - ( t - 0.6 ) / 0.4 ) ) ) * 0.85;
 				var riseY = p.baseY - p.height * t;
@@ -716,9 +729,9 @@
 			gl.uniform2f( uRes, canvas.width, canvas.height );
 			gl.uniform1f( uTime, time * 0.001 );
 			gl.uniform2f( uPointer, pointer.x, pointer.y );
-			gl.uniform1f( uIntensity, 1.2 );
-			gl.uniform1f( uSpeed, 1.0 );
-			gl.uniform1f( uBands, 5.0 );
+			gl.uniform1f( uIntensity, cfg.auroraIntensity != null ? cfg.auroraIntensity : 1.2 );
+			gl.uniform1f( uSpeed, cfg.auroraSpeed != null ? cfg.auroraSpeed : 1.0 );
+			gl.uniform1f( uBands, cfg.auroraBands != null ? cfg.auroraBands : 5.0 );
 			gl.uniform1i( uPalette, palette );
 			gl.uniform1f( uPointerInfluence, 0.6 );
 			gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
@@ -825,11 +838,11 @@
 			gl.uniform2f( uRes, canvas.width, canvas.height );
 			gl.uniform1f( uTime, time * 0.001 );
 			gl.uniform2f( uPointer, pointer.x, pointer.y );
-			gl.uniform1f( uSpeed, 1.0 );
-			gl.uniform1f( uLineDensity, 8.0 );
+			gl.uniform1f( uSpeed, cfg.neonSpeed != null ? cfg.neonSpeed : 1.0 );
+			gl.uniform1f( uLineDensity, cfg.neonDensity != null ? cfg.neonDensity : 8.0 );
 			gl.uniform1i( uScheme, scheme );
 			gl.uniform1f( uPointerInfluence, 0.6 );
-			gl.uniform1f( uGlow, 1.2 );
+			gl.uniform1f( uGlow, cfg.neonGlow != null ? cfg.neonGlow : 1.2 );
 			gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
 			frameHandle = requestAnimationFrame( render );
 		}
@@ -895,6 +908,8 @@
 		var uRes = gl.getUniformLocation( program, 'u_res' );
 		var uTime = gl.getUniformLocation( program, 'u_time' );
 		var uPointer = gl.getUniformLocation( program, 'u_pointer' );
+		var uSpeed  = gl.getUniformLocation( program, 'u_speed' );
+		var uSpread = gl.getUniformLocation( program, 'u_spread' );
 		var pointer = { x: 0.5, y: 0.5, tx: 0.5, ty: 0.5 };
 		var frameHandle = 0;
 		var destroyed = false;
@@ -924,6 +939,8 @@
 			gl.uniform2f( uRes, canvas.width, canvas.height );
 			gl.uniform1f( uTime, time * 0.001 );
 			gl.uniform2f( uPointer, pointer.x, pointer.y );
+			gl.uniform1f( uSpeed, cfg.prismSpeed != null ? cfg.prismSpeed : 1.0 );
+			gl.uniform1f( uSpread, cfg.prismSpread != null ? cfg.prismSpread : 1.0 );
 			gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
 			frameHandle = requestAnimationFrame( render );
 		}
@@ -989,6 +1006,8 @@
 		var uRes = gl.getUniformLocation( program, 'u_res' );
 		var uTime = gl.getUniformLocation( program, 'u_time' );
 		var uPointer = gl.getUniformLocation( program, 'u_pointer' );
+		var uSpeed       = gl.getUniformLocation( program, 'u_speed' );
+		var uTurbulence  = gl.getUniformLocation( program, 'u_turbulence' );
 		var pointer = { x: 0.5, y: 0.5, tx: 0.5, ty: 0.5 };
 		var frameHandle = 0;
 		var destroyed = false;
@@ -1018,6 +1037,8 @@
 			gl.uniform2f( uRes, canvas.width, canvas.height );
 			gl.uniform1f( uTime, time * 0.001 );
 			gl.uniform2f( uPointer, pointer.x, pointer.y );
+			gl.uniform1f( uSpeed,      cfg.plasmaSpeed      != null ? cfg.plasmaSpeed      : 1.0 );
+			gl.uniform1f( uTurbulence, cfg.plasmaTurbulence != null ? cfg.plasmaTurbulence : 1.0 );
 			gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
 			frameHandle = requestAnimationFrame( render );
 		}
@@ -1083,6 +1104,10 @@
 		var uRes = gl.getUniformLocation( program, 'u_res' );
 		var uTime = gl.getUniformLocation( program, 'u_time' );
 		var uPointer = gl.getUniformLocation( program, 'u_pointer' );
+		var uIntensity  = gl.getUniformLocation( program, 'u_intensity' );
+		var uColortemp  = gl.getUniformLocation( program, 'u_colortemp' );
+		var INFERNO_COLOR_MAP = { hot: 0, warm: 1, cool: 2, dark: 3 };
+		var colortemp = INFERNO_COLOR_MAP[ cfg.infernoColor ] != null ? INFERNO_COLOR_MAP[ cfg.infernoColor ] : 0;
 		var pointer = { x: 0.5, y: 0.5, tx: 0.5, ty: 0.5 };
 		var frameHandle = 0;
 		var destroyed = false;
@@ -1112,6 +1137,8 @@
 			gl.uniform2f( uRes, canvas.width, canvas.height );
 			gl.uniform1f( uTime, time * 0.001 );
 			gl.uniform2f( uPointer, pointer.x, pointer.y );
+			gl.uniform1f( uIntensity, cfg.infernoIntensity != null ? cfg.infernoIntensity : 1.0 );
+			gl.uniform1i( uColortemp, colortemp );
 			gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
 			frameHandle = requestAnimationFrame( render );
 		}
@@ -1131,7 +1158,7 @@
 		pCanvas.setAttribute( 'aria-hidden', 'true' );
 		pCanvas.style.cssText = 'position:absolute;pointer-events:none;z-index:10;';
 		wrapper.appendChild( pCanvas );
-		var stopParticles = createInfernoParticles( pCanvas, link, wrapper );
+		var stopParticles = createInfernoParticles( pCanvas, link, cfg );
 		var innerObs = null;
 		if ( window.MutationObserver ) {
 			innerObs = new MutationObserver( function () {
@@ -1219,16 +1246,37 @@
 			}
 		} );
 
+		cfg = {
+			palette:          wrapper.dataset.aceAuroraPalette || 'aurora',
+			auroraIntensity:  parseFloat( wrapper.dataset.aceAuroraIntensity ) || 1.2,
+			auroraSpeed:      parseFloat( wrapper.dataset.aceAuroraSpeed ) || 1.0,
+			auroraBands:      parseFloat( wrapper.dataset.aceAuroraBands ) || 5.0,
+			neonScheme:       wrapper.dataset.aceNeonScheme || 'cyan',
+			neonDensity:      parseFloat( wrapper.dataset.aceNeonDensity ) || 8.0,
+			neonGlow:         parseFloat( wrapper.dataset.aceNeonGlow ) || 1.2,
+			neonSparks:       wrapper.dataset.aceNeonSparks || 'medium',
+			prismSpeed:       parseFloat( wrapper.dataset.acePrismSpeed ) || 1.0,
+			prismSpread:      parseFloat( wrapper.dataset.acePrismSpread ) || 1.0,
+			plasmaSpeed:      parseFloat( wrapper.dataset.acePlasmaSpeed ) || 1.0,
+			plasmaTurbulence: parseFloat( wrapper.dataset.acePlasmaTurbulence ) || 1.0,
+			infernoIntensity: parseFloat( wrapper.dataset.aceInfernoIntensity ) || 1.0,
+			infernoColor:     wrapper.dataset.aceInfernoColor || 'hot',
+			infernoWhips:     wrapper.dataset.aceInfernoWhips || 'normal',
+			blendBg:          wrapper.dataset.aceBlendBg != null ? parseFloat( wrapper.dataset.aceBlendBg ) : 1.0,
+			blendMode:        wrapper.dataset.aceBlendMode || '',
+		};
+
 		canvas = document.createElement( 'canvas' );
 		canvas.className = 'ace-btn-gl-canvas';
 		canvas.setAttribute( 'aria-hidden', 'true' );
 		canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border-radius:inherit;pointer-events:none;z-index:-1;';
+		if ( cfg.blendBg != null && cfg.blendBg < 1.0 ) {
+			canvas.style.opacity = cfg.blendBg;
+		}
+		if ( cfg.blendMode ) {
+			canvas.style.mixBlendMode = cfg.blendMode;
+		}
 		link.insertBefore( canvas, link.firstChild );
-
-		cfg = {
-			palette: wrapper.dataset.aceAuroraPalette || 'aurora',
-			neonScheme: wrapper.dataset.aceNeonScheme || 'cyan',
-		};
 
 		if ( type === 'aurora' ) {
 			effect = createAuroraBtnEffect( canvas, link, cfg );
@@ -1257,7 +1305,14 @@
 			} );
 			wrapper._aceAttrObs.observe( wrapper, {
 				attributes: true,
-				attributeFilter: [ 'data-ace-aurora-palette', 'data-ace-neon-scheme' ],
+				attributeFilter: [
+					'data-ace-aurora-palette', 'data-ace-aurora-intensity', 'data-ace-aurora-speed', 'data-ace-aurora-bands',
+					'data-ace-neon-scheme', 'data-ace-neon-density', 'data-ace-neon-glow', 'data-ace-neon-sparks',
+					'data-ace-prism-speed', 'data-ace-prism-spread',
+					'data-ace-plasma-speed', 'data-ace-plasma-turbulence',
+					'data-ace-inferno-intensity', 'data-ace-inferno-color', 'data-ace-inferno-whips',
+					'data-ace-blend-bg', 'data-ace-blend-mode',
+				],
 			} );
 		}
 	}
