@@ -1323,45 +1323,48 @@
 		} );
 	}
 
-	if ( window.MutationObserver ) {
-		new MutationObserver( function ( mutations ) {
-			mutations.forEach( function ( mutation ) {
-				if ( mutation.type === 'childList' ) {
-					mutation.addedNodes.forEach( function ( node ) {
-						if ( node.nodeType !== 1 ) {
-							return;
-						}
-						if ( node.classList && getTypeFromWrapper( node ) ) {
-							setTimeout( function () {
-								mountBtnEffect( node );
-							}, 50 );
-						} else if ( node.querySelectorAll ) {
-							setTimeout( function () {
-								forEachNode( node.querySelectorAll( WEBGL_SELECTOR ), mountBtnEffect );
-							}, 50 );
-						}
-					} );
-					mutation.removedNodes.forEach( function ( node ) {
-						if ( node.nodeType !== 1 ) {
-							return;
-						}
-						if ( node._aceGLEffect ) {
-							node._aceGLEffect.destroy();
-							node._aceGLEffect = null;
-							node._aceGLType = null;
-						}
-						if ( node.querySelectorAll ) {
-							forEachNode( node.querySelectorAll( WEBGL_SELECTOR ), destroyWrapperEffect );
-						}
-					} );
-				}
-			} );
-		} ).observe( document.body, { childList: true, subtree: true } );
+	function setupAndScan() {
+		if ( window.MutationObserver ) {
+			new MutationObserver( function ( mutations ) {
+				mutations.forEach( function ( mutation ) {
+					if ( mutation.type === 'childList' ) {
+						mutation.addedNodes.forEach( function ( node ) {
+							if ( node.nodeType !== 1 ) {
+								return;
+							}
+							if ( node.classList && getTypeFromWrapper( node ) ) {
+								setTimeout( function () {
+									mountBtnEffect( node );
+								}, 50 );
+							} else if ( node.querySelectorAll ) {
+								setTimeout( function () {
+									forEachNode( node.querySelectorAll( WEBGL_SELECTOR ), mountBtnEffect );
+								}, 50 );
+							}
+						} );
+						mutation.removedNodes.forEach( function ( node ) {
+							if ( node.nodeType !== 1 ) {
+								return;
+							}
+							if ( node._aceGLEffect ) {
+								node._aceGLEffect.destroy();
+								node._aceGLEffect = null;
+								node._aceGLType = null;
+							}
+							if ( node.querySelectorAll ) {
+								forEachNode( node.querySelectorAll( WEBGL_SELECTOR ), destroyWrapperEffect );
+							}
+						} );
+					}
+				} );
+			} ).observe( document.body, { childList: true, subtree: true } );
+		}
+		scanAndMount();
 	}
 
-	if ( document.readyState === 'loading' ) {
-		document.addEventListener( 'DOMContentLoaded', scanAndMount );
+	if ( document.readyState === 'loading' || ! document.body ) {
+		document.addEventListener( 'DOMContentLoaded', setupAndScan );
 	} else {
-		scanAndMount();
+		setupAndScan();
 	}
 } )();

@@ -457,7 +457,7 @@
 		}
 	}
 
-	if ( document.readyState === 'loading' ) {
+	if ( document.readyState === 'loading' || ! document.body ) {
 		document.addEventListener( 'DOMContentLoaded', init );
 	} else {
 		init();
