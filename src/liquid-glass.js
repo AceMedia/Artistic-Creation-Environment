@@ -123,6 +123,33 @@
 		document.head.appendChild( s );
 	}
 
+	// Binds a smooth 3D perspective tilt on mousemove — replaces liquidGL's
+	// tilt uniforms. Respects prefers-reduced-motion.
+	// el     — element to transform (the glass surface)
+	// target — element to listen on (often the same as el)
+	// factor — max tilt in degrees (default 5)
+	function bindTilt( el, target, factor ) {
+		if ( window.matchMedia && window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches ) {
+			return;
+		}
+		var f = Number( factor ) || 5;
+		el.style.willChange  = 'transform';
+		el.style.transition  = 'transform 0.12s ease-out';
+
+		target.addEventListener( 'mousemove', function ( e ) {
+			var rect = target.getBoundingClientRect();
+			var rotY =  ( ( e.clientX - rect.left  - rect.width  / 2 ) / ( rect.width  / 2 ) ) * f;
+			var rotX = -( ( e.clientY - rect.top   - rect.height / 2 ) / ( rect.height / 2 ) ) * f;
+			el.style.transform = 'perspective(600px) rotateX(' + rotX.toFixed(2) + 'deg) rotateY(' + rotY.toFixed(2) + 'deg)';
+		} );
+
+		target.addEventListener( 'mouseleave', function () {
+			el.style.transition = 'transform 0.3s ease-out';
+			el.style.transform  = '';
+			setTimeout( function () { el.style.transition = 'transform 0.12s ease-out'; }, 300 );
+		} );
+	}
+
 	// ── Button init ────────────────────────────────────────────────────────────
 	function initButtons() {
 		document.querySelectorAll( '.ace-artistic-btn--liquid-glass' ).forEach( function ( wrapper ) {
@@ -134,6 +161,11 @@
 			}
 			link.style.position = link.style.position || 'relative';
 			link.style.zIndex   = link.style.zIndex   || '1';
+			// Tilt on hover — reads data-ace-lg-tilt from the wrapper (set by the editor).
+			if ( wrapper.dataset.aceLgTilt === 'true' ) {
+				var factor = wrapper.dataset.aceLgTiltFactor;
+				bindTilt( wrapper, wrapper, factor );
+			}
 		} );
 	}
 
@@ -156,13 +188,17 @@
 		} );
 	}
 
-	// ── Sticky block init ───────────────────────────────────────────────────────
+	// ── Sticky / group block init ───────────────────────────────────────────────
 	function initStickyBlocks() {
 		document.querySelectorAll( '[data-ace-sticky-glass="true"]' ).forEach( function ( el ) {
 			if ( ! el.style.getPropertyValue( '--ace-glass-blur' ) ) {
 				setCSSVarsFromPreset( el, el.dataset.aceLgPreset || 'default' );
 			}
 			el.style.isolation = 'auto';
+			// Tilt on hover — opt-in via data-ace-lg-tilt attribute.
+			if ( el.dataset.aceLgTilt === 'true' ) {
+				bindTilt( el, el, el.dataset.aceLgTiltFactor );
+			}
 		} );
 	}
 

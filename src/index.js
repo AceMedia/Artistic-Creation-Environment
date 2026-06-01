@@ -4389,15 +4389,17 @@ return {
 ...settings,
 attributes: {
 ...( settings.attributes || {} ),
-aceStickyGlass:       { type: 'boolean', default: false },
-aceStickyGlassPreset: { type: 'string',  default: 'default' },
+aceStickyGlass:           { type: 'boolean', default: false },
+aceStickyGlassPreset:     { type: 'string',  default: 'default' },
+aceStickyGlassTilt:       { type: 'boolean', default: false },
+aceStickyGlassTiltFactor: { type: 'number',  default: 5 },
 },
 };
 }
 );
 
-// Applies glass CSS vars + data attribute to the block wrapper in the editor
-// so the backdrop-filter preview is live — preset changes show instantly.
+// Applies glass CSS vars + data attributes to the block wrapper in the editor
+// so the backdrop-filter preview is live — preset and tilt changes show instantly.
 const withGlassGroupWrapper = createHigherOrderComponent(
 	( BlockListBlock ) => {
 		return ( props ) => {
@@ -4411,6 +4413,8 @@ const withGlassGroupWrapper = createHigherOrderComponent(
 			const wrapperProps = {
 				...( props.wrapperProps || {} ),
 				'data-ace-sticky-glass': 'true',
+				'data-ace-lg-tilt': attributes.aceStickyGlassTilt ? 'true' : 'false',
+				'data-ace-lg-tilt-factor': String( attributes.aceStickyGlassTiltFactor ?? 5 ),
 				style: {
 					...( props.wrapperProps?.style || {} ),
 					...glassVars,
@@ -4458,12 +4462,29 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 								onChange={ ( v ) => setAttributes( { aceStickyGlass: v } ) }
 							/>
 							{ !! attributes.aceStickyGlass && (
+								<>
 								<SelectControl
 									label={ __( 'Glass preset', 'artistic-creation-environment' ) }
 									value={ attributes.aceStickyGlassPreset || 'default' }
 									options={ LIQUID_GLASS_PRESET_OPTIONS }
 									onChange={ ( v ) => setAttributes( { aceStickyGlassPreset: v } ) }
 								/>
+								<ToggleControl
+									label={ __( 'Tilt on hover', 'artistic-creation-environment' ) }
+									checked={ !! attributes.aceStickyGlassTilt }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassTilt: v } ) }
+								/>
+								{ !! attributes.aceStickyGlassTilt && (
+									<RangeControl
+										label={ __( 'Tilt factor', 'artistic-creation-environment' ) }
+										value={ attributes.aceStickyGlassTiltFactor ?? 5 }
+										min={ 1 }
+										max={ 15 }
+										step={ 0.5 }
+										onChange={ ( v ) => setAttributes( { aceStickyGlassTiltFactor: v } ) }
+									/>
+								) }
+								</>
 							) }
 						</PanelBody>
 					</InspectorControls>
@@ -4486,14 +4507,19 @@ addFilter(
 ( extraProps, blockType, attributes ) => {
 if ( blockType.name === 'artistic-creation-environment/creative' ) { return extraProps; }
 if ( ! attributes.aceStickyGlass ) { return extraProps; }
-return {
+const result = {
 ...extraProps,
 'data-ace-sticky-glass': 'true',
 'data-ace-lg-preset': attributes.aceStickyGlassPreset || 'default',
+'data-ace-lg-tilt': attributes.aceStickyGlassTilt ? 'true' : 'false',
 style: {
 	...( extraProps.style || {} ),
 	...getGlassCSSVarsFromPreset( attributes.aceStickyGlassPreset || 'default' ),
 },
 };
+if ( attributes.aceStickyGlassTilt && attributes.aceStickyGlassTiltFactor != null ) {
+	result[ 'data-ace-lg-tilt-factor' ] = String( attributes.aceStickyGlassTiltFactor );
+}
+return result;
 }
 );
