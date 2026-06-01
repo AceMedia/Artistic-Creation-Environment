@@ -4375,10 +4375,10 @@ addFilter(
 );
 
 
-// ─── Sticky Block Liquid Glass ────────────────────────────────────────────────
-// Adds a "Liquid Glass" panel to any sticky-positioned block in the WP editor.
-// Lets editors apply Apple-style WebGL glass physics to headers, nav bars, etc.
-// that scroll with the page using `position: sticky`.
+// ─── Group Block Liquid Glass ─────────────────────────────────────────────────
+// Adds a "Glass Background" panel to all core/group blocks (and any sticky
+// block for backward compat). Editors can apply a frosted-glass backdrop to
+// any group — hero sections, cards, navbars — not just sticky ones.
 
 addFilter(
 'blocks.registerBlockType',
@@ -4396,6 +4396,38 @@ aceStickyGlassPreset: { type: 'string',  default: 'default' },
 }
 );
 
+// Applies glass CSS vars + data attribute to the block wrapper in the editor
+// so the backdrop-filter preview is live — preset changes show instantly.
+const withGlassGroupWrapper = createHigherOrderComponent(
+	( BlockListBlock ) => {
+		return ( props ) => {
+			const { name, attributes } = props;
+			const isGroup  = name === 'core/group';
+			const isSticky = attributes?.style?.position?.type === 'sticky';
+			if ( ( ! isGroup && ! isSticky ) || ! attributes.aceStickyGlass ) {
+				return <BlockListBlock { ...props } />;
+			}
+			const glassVars = getGlassCSSVarsFromPreset( attributes.aceStickyGlassPreset || 'default' );
+			const wrapperProps = {
+				...( props.wrapperProps || {} ),
+				'data-ace-sticky-glass': 'true',
+				style: {
+					...( props.wrapperProps?.style || {} ),
+					...glassVars,
+				},
+			};
+			return <BlockListBlock { ...props } wrapperProps={ wrapperProps } />;
+		};
+	},
+	'withGlassGroupWrapper'
+);
+
+addFilter(
+	'editor.BlockListBlock',
+	'artistic-creation-environment/glass-group-wrapper',
+	withGlassGroupWrapper
+);
+
 const withLiquidGlassStickyControls = createHigherOrderComponent(
 	( BlockEdit ) => {
 		return ( props ) => {
@@ -4403,8 +4435,10 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 			if ( name === 'artistic-creation-environment/creative' ) {
 				return <BlockEdit { ...props } />;
 			}
+			// Show on all group blocks, not just sticky ones.
+			const isGroup  = name === 'core/group';
 			const isSticky = attributes?.style?.position?.type === 'sticky';
-			if ( ! isSticky ) {
+			if ( ! isGroup && ! isSticky ) {
 				return <BlockEdit { ...props } />;
 			}
 			return (
@@ -4412,14 +4446,14 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 					<BlockEdit { ...props } />
 					<InspectorControls>
 						<PanelBody
-							title={ __( 'Liquid Glass', 'artistic-creation-environment' ) }
+							title={ __( 'Glass Background', 'artistic-creation-environment' ) }
 							initialOpen={ !! attributes.aceStickyGlass }
 						>
 							<p className="components-base-control__help">
-								{ __( 'Apply WebGL glass physics to this sticky block — content scrolling behind it refracts through the lens in real time.', 'artistic-creation-environment' ) }
+								{ __( 'Apply a frosted-glass backdrop to this block. Content behind it will show through with a blur and tint — great for overlays, cards, and sticky navbars.', 'artistic-creation-environment' ) }
 							</p>
 							<ToggleControl
-								label={ __( 'Enable Liquid Glass', 'artistic-creation-environment' ) }
+								label={ __( 'Enable Glass Background', 'artistic-creation-environment' ) }
 								checked={ !! attributes.aceStickyGlass }
 								onChange={ ( v ) => setAttributes( { aceStickyGlass: v } ) }
 							/>
@@ -4452,8 +4486,6 @@ addFilter(
 ( extraProps, blockType, attributes ) => {
 if ( blockType.name === 'artistic-creation-environment/creative' ) { return extraProps; }
 if ( ! attributes.aceStickyGlass ) { return extraProps; }
-const isSticky = attributes?.style?.position?.type === 'sticky';
-if ( ! isSticky ) { return extraProps; }
 return {
 ...extraProps,
 'data-ace-sticky-glass': 'true',
