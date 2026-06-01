@@ -638,16 +638,29 @@ background-position: 170% center, 100% center;
 // CSS-only frosted glass effect for selected text spans.
 // No WebGL on inline elements — backdrop-filter gives a clean result.
 .ace-glass-text {
-	background: rgba( 255, 255, 255, 0.15 );
-	-webkit-backdrop-filter: blur( 8px ) saturate( 150% );
-	backdrop-filter: blur( 8px ) saturate( 150% );
-	border-radius: 4px;
-	padding: 0.1em 0.3em;
-	border: 1px solid rgba( 255, 255, 255, 0.3 );
-	box-shadow:
-		0 2px 8px rgba( 0, 0, 0, 0.15 ),
-		inset 0 1px 0 rgba( 255, 255, 255, 0.3 );
-	color: inherit;
+	// Fill the letterforms themselves with a glass-light gradient.
+	// background-clip: text paints the gradient inside each character outline
+	// rather than behind the span — this is what makes the text look like
+	// it's carved from glass rather than sitting on a frosted tile.
+	background: linear-gradient(
+		135deg,
+		rgba( 255, 255, 255, 0.95 ) 0%,
+		rgba( 190, 225, 255, 0.85 ) 20%,
+		rgba( 255, 255, 255, 0.6 )  40%,
+		rgba( 170, 210, 255, 0.80 ) 60%,
+		rgba( 240, 250, 255, 0.90 ) 80%,
+		rgba( 255, 255, 255, 0.95 ) 100%
+	);
+	-webkit-background-clip: text;
+	background-clip: text;
+	-webkit-text-fill-color: transparent;
+	color: transparent;
+	// drop-shadow works on the rendered shape of the text (respects alpha),
+	// unlike text-shadow which is incompatible with background-clip: text.
+	filter:
+		drop-shadow( 0 1px 0 rgba( 255, 255, 255, 0.8 ) )
+		drop-shadow( 0 2px 5px rgba( 0, 0, 0, 0.25 ) )
+		drop-shadow( 0 0 14px rgba( 150, 200, 255, 0.35 ) );
 	display: inline;
 	-webkit-box-decoration-break: clone;
 	box-decoration-break: clone;
