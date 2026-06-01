@@ -666,7 +666,46 @@ background-position: 170% center, 100% center;
 	box-decoration-break: clone;
 }
 
-// ─── Artistic button backgrounds ─────────────────────────────────────────────
+// ── Liquid Glass editor preview ───────────────────────────────────────────────
+// WebGL cannot initialise inside the Gutenberg block editor iframe, so we
+// provide a CSS backdrop-filter approximation so designers see a meaningful
+// glass preview whilst editing. The real WebGL effect renders on the frontend.
+
+// Glass buttons in the editor.
+.wp-block-button.ace-artistic-btn--liquid-glass .wp-block-button__link {
+	background: rgba( 255, 255, 255, 0.12 ) !important;
+	backdrop-filter: blur( 16px ) saturate( 180% ) brightness( 1.15 );
+	-webkit-backdrop-filter: blur( 16px ) saturate( 180% ) brightness( 1.15 );
+	border: 1px solid rgba( 255, 255, 255, 0.3 ) !important;
+	box-shadow:
+		0 4px 24px rgba( 0, 0, 0, 0.12 ),
+		inset 0 1px 0 rgba( 255, 255, 255, 0.4 ),
+		inset 0 -1px 0 rgba( 255, 255, 255, 0.1 ) !important;
+	color: rgba( 255, 255, 255, 0.95 ) !important;
+	text-shadow: 0 1px 2px rgba( 0, 0, 0, 0.25 );
+}
+
+// Glass Creative block inner container in the editor.
+.wp-block-artistic-creation-environment-creative[data-ace-liquid-glass='true']
+	.artistic-creative__inner-container {
+	background: rgba( 255, 255, 255, 0.08 ) !important;
+	backdrop-filter: blur( 20px ) saturate( 150% ) brightness( 1.1 );
+	-webkit-backdrop-filter: blur( 20px ) saturate( 150% ) brightness( 1.1 );
+	border: 1px solid rgba( 255, 255, 255, 0.2 ) !important;
+	box-shadow:
+		0 8px 32px rgba( 0, 0, 0, 0.1 ),
+		inset 0 1px 0 rgba( 255, 255, 255, 0.3 ) !important;
+}
+
+// Sticky blocks with glass enabled in the editor.
+[data-ace-sticky-glass='true'] {
+	background: rgba( 255, 255, 255, 0.1 ) !important;
+	backdrop-filter: blur( 18px ) saturate( 160% ) brightness( 1.12 );
+	-webkit-backdrop-filter: blur( 18px ) saturate( 160% ) brightness( 1.12 );
+	border: 1px solid rgba( 255, 255, 255, 0.2 ) !important;
+	box-shadow: 0 6px 28px rgba( 0, 0, 0, 0.1 ) !important;
+}
+
 
 // Magic — rainbow shimmer (new class + backward-compat alias)
 .ace-artistic-btn--magic .wp-block-button__link,

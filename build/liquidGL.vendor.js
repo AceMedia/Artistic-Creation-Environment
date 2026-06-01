@@ -446,9 +446,18 @@
             .flatMap((lens) => [lens.el, lens._shadowEl])
             .filter(Boolean);
 
+          // PR #7 patch: tag lens elements so we can hide them via `onclone`
+          // with visibility:hidden instead of ignoreElements (which collapses
+          // layout via display:none, causing positional drift on multi-lens pages).
+          lensElements.forEach(
+            (el) => el && el.setAttribute("data-liquidgl-hide", "1")
+          );
+
           const ignoreElementsFunc = (element) => {
             if (!element || !element.hasAttribute) return false;
-            if (element === this.canvas || lensElements.includes(element)) {
+            // Keep canvas hidden but do NOT include lens elements here —
+            // those are handled via onclone with visibility:hidden below.
+            if (element === this.canvas) {
               return true;
             }
             const style = window.getComputedStyle(element);
@@ -472,7 +481,21 @@
             scrollY: 0,
             scale: scale,
             ignoreElements: ignoreElementsFunc,
+            onclone: (clonedDoc) => {
+              // Hide lens elements in the clone using visibility:hidden so the
+              // surrounding layout is preserved (no height collapse / drift).
+              clonedDoc
+                .querySelectorAll("[data-liquidgl-hide]")
+                .forEach((el) => {
+                  el.style.visibility = "hidden";
+                });
+            },
           });
+
+          // Remove lens-hide tags immediately after capture.
+          lensElements.forEach(
+            (el) => el && el.removeAttribute("data-liquidgl-hide")
+          );
 
           this._uploadTexture(snapCanvas);
           return true;
