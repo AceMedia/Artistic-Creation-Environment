@@ -172,6 +172,36 @@
 		return null;
 	}
 
+	// Extracts all colour stops from a CSS gradient string.
+	// Handles rgb()/rgba() (WP theme presets) as well as #rrggbb and #rgb notation.
+	function parseGradientColors( gradVal ) {
+		var colors = [];
+		var seen = {};
+		function add( hex ) {
+			var h = hex.toLowerCase();
+			if ( ! seen[ h ] ) { seen[ h ] = true; colors.push( h ); }
+		}
+		// rgb()/rgba() — WP theme gradients always use this format
+		var m, rgbRe = /rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/g;
+		while ( ( m = rgbRe.exec( gradVal ) ) !== null ) {
+			add( '#' +
+				( '0' + parseInt( m[ 1 ], 10 ).toString( 16 ) ).slice( -2 ) +
+				( '0' + parseInt( m[ 2 ], 10 ).toString( 16 ) ).slice( -2 ) +
+				( '0' + parseInt( m[ 3 ], 10 ).toString( 16 ) ).slice( -2 )
+			);
+		}
+		// 6-digit hex (#rrggbb), not followed by more hex chars
+		var hexRe = /#([0-9a-fA-F]{6})(?![0-9a-fA-F])/g;
+		while ( ( m = hexRe.exec( gradVal ) ) !== null ) { add( '#' + m[ 1 ].toLowerCase() ); }
+		// 3-digit hex (#rgb → #rrggbb)
+		var hex3Re = /#([0-9a-fA-F]{3})(?![0-9a-fA-F])/g;
+		while ( ( m = hex3Re.exec( gradVal ) ) !== null ) {
+			var c = m[ 1 ];
+			add( '#' + c[ 0 ] + c[ 0 ] + c[ 1 ] + c[ 1 ] + c[ 2 ] + c[ 2 ] );
+		}
+		return colors;
+	}
+
 	// Extract hex colours from the element's CSS variables / classes.
 	// Result is cached on the element so getComputedStyle is only called once per element.
 	function getElementColors( el ) {
@@ -207,11 +237,11 @@
 			}
 		} else {
 			// Magic (text or button) — read --ace-magic-gradient
+			// parseGradientColors handles rgb() (WP theme presets) as well as hex.
 			try {
 				var gradVal = getComputedStyle( el ).getPropertyValue( '--ace-magic-gradient' ).trim();
 				if ( gradVal ) {
-					var found = gradVal.match( /#[0-9a-fA-F]{6}/g );
-					if ( found && found.length >= 2 ) colors = found;
+					colors = parseGradientColors( gradVal );
 				}
 			} catch ( e ) {}
 			if ( colors.length < 2 ) colors = DEFAULT_COLORS.slice( 0, -1 );
