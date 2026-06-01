@@ -46,6 +46,19 @@
 		}
 	}
 
+	// Safety net — if liquidGL's reveal never fires (e.g. snapshot fails even after
+	// retries), it leaves the lens elements at opacity:0. We restore them after 5 s
+	// so buttons never permanently vanish if something unexpected goes wrong.
+	function restoreOpacityFallback( selector ) {
+		setTimeout( function () {
+			document.querySelectorAll( selector ).forEach( function ( el ) {
+				if ( el.style.opacity === '0' ) {
+					el.style.opacity = '';
+				}
+			} );
+		}, 5000 );
+	}
+
 	function init() {
 		// Wait for the liquidGL global to be available (script ordering edge case).
 		if ( typeof liquidGL === 'undefined' ) {
@@ -79,6 +92,7 @@
 				} );
 			} );
 			initGroup( '.ace-lg-btn', btnCfg );
+			restoreOpacityFallback( '.ace-lg-btn' );
 		}
 
 		// ── 2. Creative block content overlays ────────────────────────────────────
@@ -96,6 +110,7 @@
 				inner.style.zIndex   = inner.style.zIndex   || '100';
 			} );
 			initGroup( '.ace-lg-creative', creativeCfg );
+			restoreOpacityFallback( '.ace-lg-creative' );
 		}
 
 		// ── 3. Sticky blocks ──────────────────────────────────────────────────────
@@ -110,6 +125,7 @@
 				child.style.zIndex   = child.style.zIndex   || '3';
 			} );
 			initGroup( '.' + uid, readConfig( el ) );
+			restoreOpacityFallback( '.' + uid );
 		} );
 	}
 
