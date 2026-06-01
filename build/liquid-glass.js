@@ -69,6 +69,10 @@
 			}
 			el.style.removeProperty( 'backdrop-filter' );
 			el.style.removeProperty( '-webkit-backdrop-filter' );
+			// liquidGL sets pointer-events:none on the target element to prevent
+			// hover interference during snapshot, but never restores it — this makes
+			// the entire block unclickable. Undo it immediately so links/buttons work.
+			el.style.removeProperty( 'pointer-events' );
 		}
 	}
 
