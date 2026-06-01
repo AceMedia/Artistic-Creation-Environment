@@ -827,6 +827,46 @@ const getChildInteractivityStyle = ( attributes = {} ) => {
 	};
 };
 
+// ── Glass CSS helpers ─────────────────────────────────────────────────────────
+// Raw preset values — mirrors PRESETS in liquid-glass.js. Single source of truth
+// for both the live editor preview (via inline CSS vars) and the saved HTML
+// (CSS vars baked into the block style attribute on save).
+const GLASS_PRESET_VALUES = {
+	default: { refraction: 0,     bevelDepth: 0.052, frost: 2,   shadow: true,  specular: true  },
+	alien:   { refraction: 0.073, bevelDepth: 0.2,   frost: 2,   shadow: true,  specular: false },
+	pulse:   { refraction: 0.03,  bevelDepth: 0,     frost: 0,   shadow: false, specular: false },
+	frost:   { refraction: 0,     bevelDepth: 0.035, frost: 0.9, shadow: true,  specular: true  },
+	edge:    { refraction: 0.047, bevelDepth: 0.136, frost: 2,   shadow: true,  specular: false },
+};
+
+// Converts raw liquidGL-equivalent values to CSS custom property strings.
+// The same CSS vars are used in editor.scss (via var()) so any change to a
+// glass control in the inspector updates the editor preview immediately.
+function glassValsToCSSVars( frost, refraction, bevelDepth, shadow, specular ) {
+	const blur    = Math.round( frost * 8 );
+	const sat     = Math.round( 150 + refraction * 600 );
+	const bright  = specular ? 1.2 : 1.08;
+	const tintA   = ( 0.06 + refraction * 0.5 ).toFixed( 2 );
+	const borderA = ( 0.18 + bevelDepth ).toFixed( 2 );
+	const shadowV = shadow
+		? `0 6px 28px rgba(0,0,0,0.14)${ specular ? ', inset 0 1px 0 rgba(255,255,255,0.5)' : '' }`
+		: 'none';
+	return {
+		'--ace-glass-blur'      : `${ blur }px`,
+		'--ace-glass-saturate'  : `${ sat }%`,
+		'--ace-glass-brightness': `${ bright }`,
+		'--ace-glass-tint'      : `rgba(255,255,255,${ tintA })`,
+		'--ace-glass-shadow'    : shadowV,
+		'--ace-glass-border'    : `rgba(255,255,255,${ borderA })`,
+	};
+}
+
+// CSS vars from a preset name only (Creative block + sticky blocks use this).
+function getGlassCSSVarsFromPreset( presetName ) {
+	const p = GLASS_PRESET_VALUES[ presetName ] || GLASS_PRESET_VALUES.default;
+	return glassValsToCSSVars( p.frost, p.refraction, p.bevelDepth, p.shadow, p.specular );
+}
+
 const getBlockDataAttributes = ( attributes = {} ) =>
 	hasChildInteractivity( attributes )
 		? {
@@ -849,6 +889,7 @@ const getVerticalAlignStyle = ( attributes = {} ) => {
 };
 
 const getEditorBlockStyle = ( attributes = {} ) => {
+	const isGlass = attributes.aceCreativeContentEffectPreset === 'liquid-glass';
 	const contentStyle = getContentEffectStyle( attributes ) || {};
 	const childInteractivityStyle =
 		getChildInteractivityStyle( attributes ) || {};
@@ -857,6 +898,7 @@ const getEditorBlockStyle = ( attributes = {} ) => {
 		...contentStyle,
 		...childInteractivityStyle,
 		...verticalAlignStyle,
+		...( isGlass ? getGlassCSSVarsFromPreset( attributes.aceCreativeLiquidGlassPreset || 'default' ) : {} ),
 	};
 
 	if ( attributes?.style?.dimensions?.minHeight ) {
@@ -870,10 +912,12 @@ const getEditorBlockStyle = ( attributes = {} ) => {
 };
 
 const getSavedBlockStyle = ( attributes = {} ) => {
+	const isGlass = attributes.aceCreativeContentEffectPreset === 'liquid-glass';
 	const blockStyle = {
 		...( getContentEffectStyle( attributes ) || {} ),
 		...( getChildInteractivityStyle( attributes ) || {} ),
 		...( getVerticalAlignStyle( attributes ) || {} ),
+		...( isGlass ? getGlassCSSVarsFromPreset( attributes.aceCreativeLiquidGlassPreset || 'default' ) : {} ),
 	};
 
 	return Object.keys( blockStyle ).length ? blockStyle : undefined;
@@ -3732,12 +3776,37 @@ function getArtisticBtnClasses( attributes ) {
 		.join( ' ' );
 }
 
-// CSS-variable style — only magic uses a CSS var; WebGL types use data attrs instead.
+// CSS vars from all per-button glass attribute overrides on top of the preset.
+// Called on every render, so changing any inspector control updates the editor
+// glass preview in real time without a page reload.
+function getGlassCSSVarsFromAttrs( attributes ) {
+	const {
+		aceLiquidGlassPreset,
+		aceLiquidGlassRefraction,
+		aceLiquidGlassBevelDepth,
+		aceLiquidGlassFrost,
+		aceLiquidGlassShadow,
+		aceLiquidGlassSpecular,
+	} = attributes;
+	const p       = GLASS_PRESET_VALUES[ aceLiquidGlassPreset ] || GLASS_PRESET_VALUES.default;
+	const frost   = aceLiquidGlassFrost      != null ? aceLiquidGlassFrost      : p.frost;
+	const refr    = aceLiquidGlassRefraction != null ? aceLiquidGlassRefraction : p.refraction;
+	const bevel   = aceLiquidGlassBevelDepth != null ? aceLiquidGlassBevelDepth : p.bevelDepth;
+	const shadow  = aceLiquidGlassShadow     != null ? aceLiquidGlassShadow     : p.shadow;
+	const specular = aceLiquidGlassSpecular  != null ? aceLiquidGlassSpecular   : p.specular;
+	return glassValsToCSSVars( frost, refr, bevel, shadow, specular );
+}
+
+// CSS-variable style — magic uses a gradient CSS var; liquid-glass uses CSS vars
+// so every inspector control change updates the editor preview instantly.
 function getArtisticBtnStyle( attributes ) {
 	const { aceMagicBg, aceArtisticBtnType } = attributes;
 	const type = aceArtisticBtnType || ( aceMagicBg ? 'magic' : '' );
 	if ( type === 'magic' && aceMagicBg ) {
 		return { '--ace-magic-gradient': aceMagicBg };
+	}
+	if ( type === 'liquid-glass' ) {
+		return getGlassCSSVarsFromAttrs( attributes );
 	}
 	return {};
 }
@@ -4389,6 +4458,10 @@ return {
 ...extraProps,
 'data-ace-sticky-glass': 'true',
 'data-ace-lg-preset': attributes.aceStickyGlassPreset || 'default',
+style: {
+	...( extraProps.style || {} ),
+	...getGlassCSSVarsFromPreset( attributes.aceStickyGlassPreset || 'default' ),
+},
 };
 }
 );

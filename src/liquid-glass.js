@@ -1,281 +1,176 @@
-// src/liquid-glass.js — ACE LiquidGL frontend init wrapper.
-// Initialises WebGL glass effects on magic buttons, Creative block overlays,
-// and sticky blocks that have the liquid glass option enabled in the editor.
-// Dependencies: html2canvas.vendor.js and liquidGL.vendor.js must load first.
+// src/liquid-glass.js — ACE glass effects frontend init (CSS backdrop-filter).
+// CSS custom properties are baked into each element's style attribute on save
+// by the editor (index.js). This script injects the CSS rules that consume
+// those vars, and sets them as a JS fallback for any blocks saved before the
+// CSS-vars approach was introduced.
 ( function () {
 	'use strict';
 
 	if ( window._aceLiquidGlassLoaded ) { return; }
 	window._aceLiquidGlassLoaded = true;
 
-	// Built-in liquidGL presets, mirroring the values from the library.
+	// Raw preset values — must mirror GLASS_PRESET_VALUES in index.js.
 	var PRESETS = {
-		'default': { refraction: 0,     bevelDepth: 0.052, bevelWidth: 0.211, frost: 2,   shadow: true,  specular: true  },
-		'alien'  : { refraction: 0.073, bevelDepth: 0.2,   bevelWidth: 0.156, frost: 2,   shadow: true,  specular: false },
-		'pulse'  : { refraction: 0.03,  bevelDepth: 0,     bevelWidth: 0.273, frost: 0,   shadow: false, specular: false },
-		'frost'  : { refraction: 0,     bevelDepth: 0.035, bevelWidth: 0.119, frost: 0.9, shadow: true,  specular: true  },
-		'edge'   : { refraction: 0.047, bevelDepth: 0.136, bevelWidth: 0.076, frost: 2,   shadow: true,  specular: false },
+		'default': { refraction: 0,     bevelDepth: 0.052, frost: 2,   shadow: true,  specular: true  },
+		'alien'  : { refraction: 0.073, bevelDepth: 0.2,   frost: 2,   shadow: true,  specular: false },
+		'pulse'  : { refraction: 0.03,  bevelDepth: 0,     frost: 0,   shadow: false, specular: false },
+		'frost'  : { refraction: 0,     bevelDepth: 0.035, frost: 0.9, shadow: true,  specular: true  },
+		'edge'   : { refraction: 0.047, bevelDepth: 0.136, frost: 2,   shadow: true,  specular: false },
 	};
 
-	// Read liquidGL config from a wrapper element's data attributes.
-	// Falls back to the named preset for any value not explicitly overridden.
-	function readConfig( el ) {
-		var ds     = el.dataset || {};
-		var preset = PRESETS[ ds.aceLgPreset ] || PRESETS['default'];
+	// Convert raw preset values to CSS custom property string/values.
+	function presetToCSSVars( p ) {
+		var blur    = Math.round( p.frost * 8 );
+		var sat     = Math.round( 150 + p.refraction * 600 );
+		var bright  = p.specular ? 1.2 : 1.08;
+		var tintA   = ( 0.06 + p.refraction * 0.5 ).toFixed( 2 );
+		var borderA = ( 0.18 + p.bevelDepth ).toFixed( 2 );
+		var shadow  = p.shadow
+			? '0 6px 28px rgba(0,0,0,0.14)' + ( p.specular ? ', inset 0 1px 0 rgba(255,255,255,0.5)' : '' )
+			: 'none';
 		return {
-			refraction : ds.aceLgRefraction != null ? +ds.aceLgRefraction : preset.refraction,
-			bevelDepth : ds.aceLgBevelDepth  != null ? +ds.aceLgBevelDepth : preset.bevelDepth,
-			bevelWidth : ds.aceLgBevelWidth  != null ? +ds.aceLgBevelWidth : preset.bevelWidth,
-			frost      : ds.aceLgFrost       != null ? +ds.aceLgFrost      : preset.frost,
-			shadow     : ds.aceLgShadow     !== 'false' ? preset.shadow    : false,
-			specular   : ds.aceLgSpecular   !== 'false' ? preset.specular  : false,
-			tilt       : ds.aceLgTilt       === 'true',
-			tiltFactor : ds.aceLgTiltFactor  != null ? +ds.aceLgTiltFactor : 5,
-			magnify    : ds.aceLgMagnify     != null ? +ds.aceLgMagnify    : 1,
-			// Resolution only matters for the first liquidGL() call (singleton renderer).
-			// 1.5 is a good balance — lower than default 2.0 to avoid GPU texture limits
-			// on long WordPress pages.
-			resolution : ds.aceLgResolution  != null ? +ds.aceLgResolution : 1.5,
-			reveal     : ds.aceLgReveal || 'fade',
+			'--ace-glass-blur'      : blur + 'px',
+			'--ace-glass-saturate'  : sat + '%',
+			'--ace-glass-brightness': String( bright ),
+			'--ace-glass-tint'      : 'rgba(255,255,255,' + tintA + ')',
+			'--ace-glass-shadow'    : shadow,
+			'--ace-glass-border'    : 'rgba(255,255,255,' + borderA + ')',
 		};
 	}
 
-	// Apply per-element config to an already-initialised lens instance.
-	// Called from the on.init callback so each lens gets its own settings
-	// rather than everything sharing the first button's config.
-	function applyLensConfig( lens, cfg ) {
-		lens.options.refraction = cfg.refraction;
-		lens.options.bevelDepth = cfg.bevelDepth;
-		lens.options.bevelWidth = cfg.bevelWidth;
-		lens.options.frost      = cfg.frost;
-		lens.options.specular   = cfg.specular;
-		lens.options.magnify    = cfg.magnify;
-		lens.options.reveal     = cfg.reveal;
-		// shadow and tilt require dedicated setter methods — direct option
-		// mutation alone is insufficient for these two.
-		if ( typeof lens.setShadow === 'function' ) { lens.setShadow( cfg.shadow ); }
-		if ( typeof lens.setTilt   === 'function' ) {
-			lens.setTilt( cfg.tilt );
-			if ( cfg.tilt ) { lens.options.tiltFactor = cfg.tiltFactor; }
-		}
-	}
-
-	// Find the best snapshot target — smaller capture = better GPU texture fit
-	// on long WordPress pages. Prefer .wp-site-blocks (block themes) then #page,
-	// then fall back to body.
-	function snapshotTarget() {
-		if ( document.querySelector( '.wp-site-blocks' ) ) { return '.wp-site-blocks'; }
-		if ( document.querySelector( '#page' )            ) { return '#page'; }
-		return 'body';
-	}
-
-	// Check WebGL availability before calling liquidGL. The built-in CSS fallback
-	// is minimal (hardcoded rgba(255,255,255,0.07) + blur 12px), so we apply our
-	// own richer fallback and skip calling liquidGL entirely if WebGL is absent.
-	function hasWebGL() {
-		try {
-			var c = document.createElement( 'canvas' );
-			return !!( c.getContext( 'webgl2' ) || c.getContext( 'webgl' ) );
-		} catch ( e ) {
-			return false;
-		}
-	}
-
-	// Rich CSS fallback used when WebGL is unavailable.
-	function applyCSSFallback( selector ) {
-		document.querySelectorAll( selector ).forEach( function ( el ) {
-			el.style.background        = 'rgba(255,255,255,0.12)';
-			el.style.backdropFilter    = 'blur(20px) saturate(180%) brightness(1.15)';
-			el.style.webkitBackdropFilter = el.style.backdropFilter;
-			el.style.border            = '1px solid rgba(255,255,255,0.25)';
-			el.style.boxShadow         = '0 8px 32px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.35)';
-			el.style.opacity           = '';
+	// Set CSS vars on an element from a named preset — used as a fallback for
+	// older saved blocks that don't have CSS vars baked into their style attribute.
+	function setCSSVarsFromPreset( el, presetName ) {
+		var p    = PRESETS[ presetName ] || PRESETS['default'];
+		var vars = presetToCSSVars( p );
+		Object.keys( vars ).forEach( function ( key ) {
+			el.style.setProperty( key, vars[ key ] );
 		} );
 	}
 
-	// Safety net — if liquidGL's reveal never fires (e.g. snapshot fails even
-	// after retries), it leaves the lens elements at opacity:0. We restore them
-	// after 5 s so buttons never permanently vanish.
-	function restoreOpacityFallback( selector ) {
-		setTimeout( function () {
-			document.querySelectorAll( selector ).forEach( function ( el ) {
-				if ( el.style.opacity === '0' ) {
-					el.style.opacity = '';
-				}
-			} );
-		}, 5000 );
+	// Inject the glass CSS rules once. CSS vars are set inline on each block
+	// wrapper; these rules consume them with reasonable fallbacks.
+	function injectGlassCSS() {
+		if ( document.getElementById( 'ace-glass-styles' ) ) { return; }
+		var css =
+			// ── Glass buttons ────────────────────────────────────────────────
+			'.ace-artistic-btn--liquid-glass .wp-block-button__link {' +
+			'  background: var(--ace-glass-tint, rgba(255,255,255,0.12)) !important;' +
+			'  backdrop-filter:' +
+			'    blur(var(--ace-glass-blur, 16px))' +
+			'    saturate(var(--ace-glass-saturate, 180%))' +
+			'    brightness(var(--ace-glass-brightness, 1.15));' +
+			'  -webkit-backdrop-filter:' +
+			'    blur(var(--ace-glass-blur, 16px))' +
+			'    saturate(var(--ace-glass-saturate, 180%))' +
+			'    brightness(var(--ace-glass-brightness, 1.15));' +
+			'  border: 1px solid var(--ace-glass-border, rgba(255,255,255,0.3)) !important;' +
+			'  box-shadow: var(--ace-glass-shadow, 0 4px 24px rgba(0,0,0,0.12)) !important;' +
+			'  color: rgba(255,255,255,0.95) !important;' +
+			'  text-shadow: 0 1px 2px rgba(0,0,0,0.25);' +
+			'  position: relative; z-index: 1;' +
+			'}' +
+			// ── Creative block glass overlay ─────────────────────────────────
+			'.wp-block-artistic-creation-environment-creative[data-ace-liquid-glass="true"]' +
+			'  .artistic-creative__inner-container {' +
+			'  background: var(--ace-glass-tint, rgba(255,255,255,0.08)) !important;' +
+			'  backdrop-filter:' +
+			'    blur(var(--ace-glass-blur, 20px))' +
+			'    saturate(var(--ace-glass-saturate, 150%))' +
+			'    brightness(var(--ace-glass-brightness, 1.1));' +
+			'  -webkit-backdrop-filter:' +
+			'    blur(var(--ace-glass-blur, 20px))' +
+			'    saturate(var(--ace-glass-saturate, 150%))' +
+			'    brightness(var(--ace-glass-brightness, 1.1));' +
+			'  border: 1px solid var(--ace-glass-border, rgba(255,255,255,0.2)) !important;' +
+			'  box-shadow: var(--ace-glass-shadow, 0 8px 32px rgba(0,0,0,0.1)) !important;' +
+			'  position: relative; z-index: 1;' +
+			'}' +
+			// ── Sticky glass blocks ───────────────────────────────────────────
+			'[data-ace-sticky-glass="true"] {' +
+			'  background: var(--ace-glass-tint, rgba(255,255,255,0.1)) !important;' +
+			'  backdrop-filter:' +
+			'    blur(var(--ace-glass-blur, 18px))' +
+			'    saturate(var(--ace-glass-saturate, 160%))' +
+			'    brightness(var(--ace-glass-brightness, 1.12));' +
+			'  -webkit-backdrop-filter:' +
+			'    blur(var(--ace-glass-blur, 18px))' +
+			'    saturate(var(--ace-glass-saturate, 160%))' +
+			'    brightness(var(--ace-glass-brightness, 1.12));' +
+			'  border: 1px solid var(--ace-glass-border, rgba(255,255,255,0.2)) !important;' +
+			'  box-shadow: var(--ace-glass-shadow, 0 6px 28px rgba(0,0,0,0.1)) !important;' +
+			'}' +
+			// ── Glass text ───────────────────────────────────────────────────
+			'.ace-glass-text {' +
+			'  background: linear-gradient(' +
+			'    135deg,' +
+			'    rgba(255,255,255,0.95) 0%, rgba(190,225,255,0.85) 20%,' +
+			'    rgba(255,255,255,0.6) 40%, rgba(170,210,255,0.80) 60%,' +
+			'    rgba(240,250,255,0.90) 80%, rgba(255,255,255,0.95) 100%' +
+			'  );' +
+			'  -webkit-background-clip: text; background-clip: text;' +
+			'  -webkit-text-fill-color: transparent; color: transparent;' +
+			'  filter:' +
+			'    drop-shadow(0 1px 0 rgba(255,255,255,0.8))' +
+			'    drop-shadow(0 2px 5px rgba(0,0,0,0.25))' +
+			'    drop-shadow(0 0 14px rgba(150,200,255,0.35));' +
+			'  display: inline;' +
+			'  -webkit-box-decoration-break: clone; box-decoration-break: clone;' +
+			'}';
+		var s    = document.createElement( 'style' );
+		s.id     = 'ace-glass-styles';
+		s.textContent = css;
+		document.head.appendChild( s );
 	}
 
-	// ── Button group init ──────────────────────────────────────────────────────
-	function initButtons( snap, useWebGL ) {
-		var btnWrappers = document.querySelectorAll( '.ace-artistic-btn--liquid-glass' );
-		if ( ! btnWrappers.length ) { return; }
-
-		btnWrappers.forEach( function ( wrapper ) {
+	// ── Button init ────────────────────────────────────────────────────────────
+	function initButtons() {
+		document.querySelectorAll( '.ace-artistic-btn--liquid-glass' ).forEach( function ( wrapper ) {
 			var link = wrapper.querySelector( '.wp-block-button__link' );
 			if ( ! link ) { return; }
-			link.classList.add( 'ace-lg-btn' );
+			// Fallback: if no CSS vars baked in (older saved blocks), set from preset.
+			if ( ! wrapper.style.getPropertyValue( '--ace-glass-blur' ) ) {
+				setCSSVarsFromPreset( wrapper, wrapper.dataset.aceLgPreset || 'default' );
+			}
 			link.style.position = link.style.position || 'relative';
-			link.style.zIndex   = link.style.zIndex   || '100';
-			// Store a reference back to the wrapper so on.init can read per-element config.
-			link._aceLgWrapper = wrapper;
-			// Ensure inner text/icons sit above the WebGL canvas.
-			[].forEach.call( link.childNodes, function ( node ) {
-				if ( node.nodeType === 1 ) {
-					node.style.position = node.style.position || 'relative';
-					node.style.zIndex   = node.style.zIndex   || '3';
-				}
-			} );
+			link.style.zIndex   = link.style.zIndex   || '1';
 		} );
-
-		if ( ! useWebGL ) {
-			applyCSSFallback( '.ace-lg-btn' );
-			return;
-		}
-
-		// Use the first wrapper's config for shared snapshot/resolution settings
-		// (the singleton renderer only reads these from the first liquidGL() call).
-		var baseCfg = readConfig( btnWrappers[ 0 ] );
-
-		try {
-			liquidGL( Object.assign( {}, baseCfg, {
-				target   : '.ace-lg-btn',
-				snapshot : snap,
-				on: {
-					init: function ( lens ) {
-						// Apply per-element config from each button's own data attrs.
-						var wrapper = lens.el && lens.el._aceLgWrapper;
-						if ( wrapper ) {
-							applyLensConfig( lens, readConfig( wrapper ) );
-						}
-					},
-				},
-			} ) );
-		} catch ( e ) {
-			console.warn( 'ACE LiquidGL button init error:', e );
-			applyCSSFallback( '.ace-lg-btn' );
-		}
-		restoreOpacityFallback( '.ace-lg-btn' );
 	}
 
-	// ── Creative block glass overlays ──────────────────────────────────────────
-	function initCreativeBlocks( snap, useWebGL ) {
-		var creativeEls = document.querySelectorAll(
+	// ── Creative block init ─────────────────────────────────────────────────────
+	function initCreativeBlocks() {
+		document.querySelectorAll(
 			'.wp-block-artistic-creation-environment-creative[data-ace-liquid-glass="true"]'
-		);
-		if ( ! creativeEls.length ) { return; }
-
-		creativeEls.forEach( function ( block ) {
+		).forEach( function ( block ) {
 			var inner = block.querySelector( '.artistic-creative__inner-container' );
 			if ( ! inner ) { return; }
-			inner.classList.add( 'ace-lg-creative' );
-			inner.style.position = inner.style.position || 'relative';
-			inner.style.zIndex   = inner.style.zIndex   || '100';
-			inner._aceLgWrapper  = block;
-
-			// Remove isolation:isolate from the outer block when glass is active —
-			// it scopes z-index to the block context and interferes with the fixed
-			// WebGL canvas z-index resolution done by liquidGL.
+			// Fallback: set CSS vars from preset if not already baked in.
+			if ( ! block.style.getPropertyValue( '--ace-glass-blur' ) ) {
+				setCSSVarsFromPreset( block, block.dataset.aceLgPreset || 'default' );
+			}
+			// Remove isolation:isolate so backdrop-filter composites against the
+			// full page — including animated backgrounds outside the block.
 			block.style.isolation = 'auto';
+			inner.style.position  = inner.style.position || 'relative';
+			inner.style.zIndex    = inner.style.zIndex   || '1';
 		} );
-
-		if ( ! useWebGL ) {
-			applyCSSFallback( '.ace-lg-creative' );
-			return;
-		}
-
-		var baseCfg = readConfig( creativeEls[ 0 ] );
-
-		try {
-			liquidGL( Object.assign( {}, baseCfg, {
-				target   : '.ace-lg-creative',
-				snapshot : snap,
-				on: {
-					init: function ( lens ) {
-						var wrapper = lens.el && lens.el._aceLgWrapper;
-						if ( wrapper ) {
-							applyLensConfig( lens, readConfig( wrapper ) );
-						}
-					},
-				},
-			} ) );
-		} catch ( e ) {
-			console.warn( 'ACE LiquidGL creative block init error:', e );
-			applyCSSFallback( '.ace-lg-creative' );
-		}
-		restoreOpacityFallback( '.ace-lg-creative' );
 	}
 
-	// ── Sticky blocks ──────────────────────────────────────────────────────────
-	// Each sticky block gets its own liquidGL call to avoid z-index conflicts
-	// between elements that may sit at different stacking depths.
-	function initStickyBlocks( snap, useWebGL ) {
-		var stickyEls = document.querySelectorAll( '[data-ace-sticky-glass="true"]' );
-		stickyEls.forEach( function ( el, i ) {
-			var uid = 'ace-lg-sticky-' + i;
-			el.classList.add( uid );
-			// Remove isolation on sticky containers for the same reason as Creative blocks.
+	// ── Sticky block init ───────────────────────────────────────────────────────
+	function initStickyBlocks() {
+		document.querySelectorAll( '[data-ace-sticky-glass="true"]' ).forEach( function ( el ) {
+			if ( ! el.style.getPropertyValue( '--ace-glass-blur' ) ) {
+				setCSSVarsFromPreset( el, el.dataset.aceLgPreset || 'default' );
+			}
 			el.style.isolation = 'auto';
-			[].slice.call( el.children ).forEach( function ( child ) {
-				child.style.position = child.style.position || 'relative';
-				child.style.zIndex   = child.style.zIndex   || '3';
-			} );
-
-			if ( ! useWebGL ) {
-				applyCSSFallback( '.' + uid );
-				return;
-			}
-
-			var cfg = readConfig( el );
-			try {
-				liquidGL( Object.assign( {}, cfg, {
-					target   : '.' + uid,
-					snapshot : snap,
-					on: {
-						init: function ( lens ) {
-							applyLensConfig( lens, cfg );
-						},
-					},
-				} ) );
-			} catch ( e ) {
-				console.warn( 'ACE LiquidGL sticky init error (', uid, '):', e );
-				applyCSSFallback( '.' + uid );
-			}
-			restoreOpacityFallback( '.' + uid );
 		} );
 	}
 
 	function init() {
-		// Wait for the liquidGL global to be available (script-ordering edge case).
-		if ( typeof liquidGL === 'undefined' ) {
-			setTimeout( init, 200 );
-			return;
-		}
-
-		// Respect the user's reduced-motion preference — CSS fallback handles things.
-		if ( window.matchMedia && window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches ) {
-			return;
-		}
-
-		// Mark the WP admin bar so liquidGL excludes it from the snapshot.
-		// It's position:fixed so it would be excluded anyway, but this is explicit.
-		var adminBar = document.getElementById( 'wpadminbar' );
-		if ( adminBar ) { adminBar.setAttribute( 'data-liquid-ignore', '' ); }
-
-		var snap     = snapshotTarget();
-		var useWebGL = hasWebGL();
-
-		initButtons(        snap, useWebGL );
-		initCreativeBlocks( snap, useWebGL );
-		initStickyBlocks(   snap, useWebGL );
-
-		// Expose a global refresh hook so dynamic blocks or AJAX content can
-		// trigger a new snapshot after DOM changes.
-		window._aceRefreshGlass = function () {
-			if ( window.__liquidGLRenderer__ && window.__liquidGLRenderer__.captureSnapshot ) {
-				window.__liquidGLRenderer__.captureSnapshot();
-			}
-		};
+		injectGlassCSS();
+		initButtons();
+		initCreativeBlocks();
+		initStickyBlocks();
 	}
 
 	if ( document.readyState === 'loading' ) {
