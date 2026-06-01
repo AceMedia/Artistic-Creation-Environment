@@ -51,12 +51,15 @@
 		try {
 			window.liquidGL( Object.assign( { target: '#' + el.id }, opts ) );
 		} catch ( e ) { /* silent — CSS fallback remains active */ }
-		// If WebGL rendered correctly, disable the CSS backdrop-filter and background
-		// on this element so the WebGL canvas is the sole glass layer.
+		// When WebGL renders correctly, only clear the opaque background tint so the
+		// liquidGL canvas (which sits just below this element) is visible through it.
+		// We deliberately keep backdrop-filter active — it provides immediate visible
+		// glass on page load (before liquidGL has painted its first frame) and layers
+		// CSS blur on top of the WebGL lens distortion for a richer combined look.
+		// Removing backdrop-filter here caused the element to be completely invisible
+		// for the first several frames, making the glass appear to "vanish" on load.
 		if ( ! window.__liquidGLNoWebGL__ ) {
-			el.style.setProperty( 'backdrop-filter',         'none', 'important' );
-			el.style.setProperty( '-webkit-backdrop-filter', 'none', 'important' );
-			el.style.setProperty( 'background',              'transparent', 'important' );
+			el.style.setProperty( 'background', 'transparent', 'important' );
 		}
 	}
 
