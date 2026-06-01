@@ -4328,51 +4328,47 @@ aceStickyGlassPreset: { type: 'string',  default: 'default' },
 );
 
 const withLiquidGlassStickyControls = createHigherOrderComponent(
-( BlockEdit ) => {
-return ( props ) => {
-const { attributes, setAttributes, name } = props;
-if ( name === 'artistic-creation-environment/creative' ) {
-return el( BlockEdit, props );
-}
-const isSticky = attributes?.style?.position?.type === 'sticky';
-if ( ! isSticky ) {
-return el( BlockEdit, props );
-}
-return el(
-Fragment,
-null,
-el( BlockEdit, props ),
-el(
-InspectorControls,
-null,
-el(
-PanelBody,
-{
-title: __( 'Liquid Glass', 'artistic-creation-environment' ),
-initialOpen: !! attributes.aceStickyGlass,
-},
-el(
-'p',
-{ className: 'components-base-control__help' },
-__( 'Apply WebGL glass physics to this sticky block — content scrolling behind it refracts through the lens in real time.', 'artistic-creation-environment' )
-),
-el( ToggleControl, {
-label: __( 'Enable Liquid Glass', 'artistic-creation-environment' ),
-checked: !! attributes.aceStickyGlass,
-onChange: ( v ) => setAttributes( { aceStickyGlass: v } ),
-} ),
-!! attributes.aceStickyGlass && el( SelectControl, {
-label: __( 'Glass preset', 'artistic-creation-environment' ),
-value: attributes.aceStickyGlassPreset || 'default',
-options: LIQUID_GLASS_PRESET_OPTIONS,
-onChange: ( v ) => setAttributes( { aceStickyGlassPreset: v } ),
-} )
-)
-)
-);
-};
-},
-'withLiquidGlassStickyControls'
+	( BlockEdit ) => {
+		return ( props ) => {
+			const { attributes, setAttributes, name } = props;
+			if ( name === 'artistic-creation-environment/creative' ) {
+				return <BlockEdit { ...props } />;
+			}
+			const isSticky = attributes?.style?.position?.type === 'sticky';
+			if ( ! isSticky ) {
+				return <BlockEdit { ...props } />;
+			}
+			return (
+				<>
+					<BlockEdit { ...props } />
+					<InspectorControls>
+						<PanelBody
+							title={ __( 'Liquid Glass', 'artistic-creation-environment' ) }
+							initialOpen={ !! attributes.aceStickyGlass }
+						>
+							<p className="components-base-control__help">
+								{ __( 'Apply WebGL glass physics to this sticky block — content scrolling behind it refracts through the lens in real time.', 'artistic-creation-environment' ) }
+							</p>
+							<ToggleControl
+								label={ __( 'Enable Liquid Glass', 'artistic-creation-environment' ) }
+								checked={ !! attributes.aceStickyGlass }
+								onChange={ ( v ) => setAttributes( { aceStickyGlass: v } ) }
+							/>
+							{ !! attributes.aceStickyGlass && (
+								<SelectControl
+									label={ __( 'Glass preset', 'artistic-creation-environment' ) }
+									value={ attributes.aceStickyGlassPreset || 'default' }
+									options={ LIQUID_GLASS_PRESET_OPTIONS }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassPreset: v } ) }
+								/>
+							) }
+						</PanelBody>
+					</InspectorControls>
+				</>
+			);
+		};
+	},
+	'withLiquidGlassStickyControls'
 );
 
 addFilter(
