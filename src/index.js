@@ -911,7 +911,17 @@ function applyGroupGlassOverrides( vars, attrs ) {
 	return v;
 }
 
-// Reads the WP native background colour from block attributes.
+// Returns true if the block has any native WP border set (colour, width, style,
+// or a preset border colour slug).  Used to decide whether glass should supply
+// its own white-highlight border or defer to the block's native border.
+function hasNativeBlockBorder( attributes ) {
+	if ( attributes?.borderColor ) { return true; }
+	const b = attributes?.style?.border;
+	if ( ! b ) { return false; }
+	const sides = [ b, b.top, b.right, b.bottom, b.left ];
+	return sides.some( ( s ) => s && ( s.color || s.width || s.style ) );
+}
+
 // Returns the value exactly as WP stores it — could be a hex string or
 // a CSS variable reference like "var(--wp--preset--color--primary)" — so it
 // can be dropped straight into a CSS custom property and resolved by the browser.
@@ -4566,6 +4576,7 @@ const withGlassGroupWrapper = createHigherOrderComponent(
 			attributes
 		);
 			const tintSrc = attributes.aceStickyGlassTintColor || getWPBlockBgColor( attributes ) || null;
+			const noBorder = hasNativeBlockBorder( attributes );
 			const wrapperProps = {
 				...( props.wrapperProps || {} ),
 				'data-ace-sticky-glass': 'true',
@@ -4573,6 +4584,7 @@ const withGlassGroupWrapper = createHigherOrderComponent(
 				'data-ace-lg-tilt-factor': String( attributes.aceStickyGlassTiltFactor ?? 5 ),
 				...( tintSrc ? { 'data-ace-glass-tint': tintSrc } : {} ),
 				...( attributes.aceStickyGlassTintOpacity != null ? { 'data-ace-glass-tint-opacity': String( attributes.aceStickyGlassTintOpacity ) } : {} ),
+				...( noBorder ? { 'data-ace-glass-no-border': 'true' } : {} ),
 				style: {
 					...( props.wrapperProps?.style || {} ),
 					...glassVars,
@@ -4769,6 +4781,8 @@ if ( attributes.aceStickyGlassTilt && attributes.aceStickyGlassTiltFactor != nul
 const tintSrc = attributes.aceStickyGlassTintColor || getWPBlockBgColor( attributes ) || null;
 if ( tintSrc ) result[ 'data-ace-glass-tint' ] = tintSrc;
 if ( attributes.aceStickyGlassTintOpacity != null ) result[ 'data-ace-glass-tint-opacity' ] = String( attributes.aceStickyGlassTintOpacity );
+// If the block has its own WP border, suppress the glass border CSS rule.
+if ( hasNativeBlockBorder( attributes ) ) result[ 'data-ace-glass-no-border' ] = 'true';
 return result;
 }
 );

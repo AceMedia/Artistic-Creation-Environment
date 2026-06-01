@@ -164,8 +164,11 @@
 			'    blur(var(--ace-glass-blur, 18px))' +
 			'    saturate(var(--ace-glass-saturate, 160%))' +
 			'    brightness(var(--ace-glass-brightness, 1.12));' +
-			'  border: 1px solid var(--ace-glass-border, rgba(255,255,255,0.2)) !important;' +
 			'  box-shadow: var(--ace-glass-shadow, 0 6px 28px rgba(0,0,0,0.1)) !important;' +
+			'}' +
+			// Only apply the glass white-edge border when the block has no native WP border.
+			'[data-ace-sticky-glass="true"]:not([data-ace-glass-no-border]) {' +
+			'  border: 1px solid var(--ace-glass-border, rgba(255,255,255,0.2)) !important;' +
 			'}' +
 			// ── Glass text ───────────────────────────────────────────────────
 			'.ace-glass-text {' +
