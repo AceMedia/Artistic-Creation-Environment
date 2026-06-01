@@ -118,6 +118,7 @@ const CONTENT_EFFECT_PRESET_OPTIONS = [
 		value: 'invert',
 	},
 	{ label: __( 'Neon glow', 'artistic-creation-environment' ), value: 'glow' },
+	{ label: __( '🪟 Liquid Glass', 'artistic-creation-environment' ), value: 'liquid-glass' },
 	{ label: __( 'Custom', 'artistic-creation-environment' ), value: 'custom' },
 ];
 
@@ -407,6 +408,15 @@ const CONTENT_EFFECT_PRESETS = {
 		aceCreativeContentSurfaceColor: '#d8f3ff',
 		aceCreativeContentInvert: false,
 	},
+	// CSS fallback values used on non-WebGL devices; liquidGL overrides these on supported browsers.
+	'liquid-glass': {
+		aceCreativeContentBlendMode: 'screen',
+		aceCreativeContentBackdropBlur: 12,
+		aceCreativeContentSurfaceOpacity: 0.1,
+		aceCreativeContentBorderOpacity: 0.2,
+		aceCreativeContentSurfaceColor: DEFAULT_CONTENT_SURFACE_COLOR,
+		aceCreativeContentInvert: false,
+	},
 };
 
 const ATTRIBUTE_DEFINITIONS = {
@@ -614,6 +624,8 @@ const ATTRIBUTE_DEFINITIONS = {
 	aceCreativeDustTrailFade: { type: 'number', default: 0.06 },
 	aceCreativeDustColor: { type: 'string', default: '#b8a8f8' },
 	aceCreativeDustPointerMode: { type: 'string', default: 'attract' },
+	// Liquid Glass content overlay preset for Creative blocks.
+	aceCreativeLiquidGlassPreset: { type: 'string', default: 'default' },
 };
 
 const resolveValue = ( attributes, key ) =>
@@ -770,7 +782,9 @@ const getContentEffectStyle = ( attributes = {} ) => {
 					? '0 20px 52px rgba(15, 23, 42, 0.2)'
 					: preset === 'invert'
 						? '0 10px 28px rgba(0, 0, 0, 0.18)'
-						: 'none';
+						: preset === 'liquid-glass'
+							? '0 8px 32px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.15)'
+							: 'none';
 	const presetSaturate =
 		preset === 'glow'
 			? 180
@@ -778,7 +792,9 @@ const getContentEffectStyle = ( attributes = {} ) => {
 				? 150
 				: preset === 'frost'
 					? 165
-					: 100;
+					: preset === 'liquid-glass'
+						? 120
+						: 100;
 	return {
 		'--ace-content-blend-mode': contentValues.blendMode || 'normal',
 		'--ace-content-backdrop-blur': `${ contentValues.backdropBlur || 0 }px`,
@@ -2595,6 +2611,15 @@ const CreativeBlockEdit = ( props = {} ) => {
 							'artistic-creation-environment'
 						) }
 					/>
+					{ attributes.aceCreativeContentEffectPreset === 'liquid-glass' && (
+						<SelectControl
+							label={ __( 'Glass preset', 'artistic-creation-environment' ) }
+							help={ __( 'Real-time WebGL glass physics. Falls back to CSS blur on non-WebGL devices.', 'artistic-creation-environment' ) }
+							value={ attributes.aceCreativeLiquidGlassPreset || 'default' }
+							options={ LIQUID_GLASS_PRESET_OPTIONS }
+							onChange={ ( v ) => setAttributes( { aceCreativeLiquidGlassPreset: v } ) }
+						/>
+					) }
 					<SelectControl
 						label={ __( 'Blend mode', 'artistic-creation-environment' ) }
 						value={
@@ -2776,11 +2801,16 @@ const CreativeBlockEdit = ( props = {} ) => {
 const CreativeBlockSave = ( props = {} ) => {
 	const { attributes = {} } = props;
 	const effectConfig = getSerializedEffectConfig( attributes );
+	const isLiquidGlass = attributes.aceCreativeContentEffectPreset === 'liquid-glass';
 	const rawBlockProps = useBlockProps.save( {
 		className: getOuterClassName( attributes ),
 		'data-artistic-creative-effect': effectConfig.effect || '',
 		...getBlockDataAttributes( attributes ),
 		style: getSavedBlockStyle( attributes ),
+		...( isLiquidGlass ? {
+			'data-ace-liquid-glass': 'true',
+			'data-ace-lg-preset': attributes.aceCreativeLiquidGlassPreset || 'default',
+		} : {} ),
 	} );
 	const innerBlocksProps = useInnerBlocksProps.save(
 		getInnerLayoutProps( rawBlockProps, attributes )
@@ -3077,6 +3107,14 @@ const CreativeChildContentEffectsControls = ( props = {} ) => {
 					options={ CONTENT_EFFECT_PRESET_OPTIONS }
 					onChange={ applyCreativeContentPreset }
 				/>
+				{ creativeAttributes.aceCreativeContentEffectPreset === 'liquid-glass' && (
+					<SelectControl
+						label={ __( 'Glass preset', 'artistic-creation-environment' ) }
+						value={ creativeAttributes.aceCreativeLiquidGlassPreset || 'default' }
+						options={ LIQUID_GLASS_PRESET_OPTIONS }
+						onChange={ ( v ) => setCreativeAttributes( { aceCreativeLiquidGlassPreset: v } ) }
+					/>
+				) }
 				<SelectControl
 					label={ __( 'Blend mode', 'artistic-creation-environment' ) }
 					value={ contentValues.blendMode || 'normal' }
@@ -3268,6 +3306,16 @@ const NEON_FORMAT_TYPE    = 'ace/neon-text';
 const PRISM_FORMAT_TYPE   = 'ace/prism-text';
 const PLASMA_FORMAT_TYPE  = 'ace/plasma-text';
 const INFERNO_FORMAT_TYPE = 'ace/inferno-text';
+const GLASS_FORMAT_TYPE   = 'ace/glass-text';
+
+// Preset options shared between the button panel, Creative block overlay, and sticky block panel.
+const LIQUID_GLASS_PRESET_OPTIONS = [
+	{ label: __( 'Default', 'artistic-creation-environment' ), value: 'default' },
+	{ label: __( 'Frost',   'artistic-creation-environment' ), value: 'frost'   },
+	{ label: __( 'Alien',   'artistic-creation-environment' ), value: 'alien'   },
+	{ label: __( 'Pulse',   'artistic-creation-environment' ), value: 'pulse'   },
+	{ label: __( 'Edge',    'artistic-creation-environment' ), value: 'edge'    },
+];
 
 // Shared defaults — single source of truth for both button attributes and text toolbar.
 const ACE_AURORA_DEFAULTS  = { palette: 'aurora', intensity: 1.2, speed: 1.0, bands: 5 };
@@ -3306,6 +3354,7 @@ const ARTISTIC_TEXT_TYPES = [
 	{ value: 'prism',   label: '🌈 Prism',   formatType: PRISM_FORMAT_TYPE                             },
 	{ value: 'plasma',  label: '⚗️ Plasma',  formatType: PLASMA_FORMAT_TYPE                            },
 	{ value: 'inferno', label: '🔥 Inferno', formatType: INFERNO_FORMAT_TYPE, hasInfernoColor: true    },
+	{ value: 'glass',   label: '🪟 Glass',   formatType: GLASS_FORMAT_TYPE                             },
 ];
 
 const ALL_ARTISTIC_FORMAT_TYPES = ARTISTIC_TEXT_TYPES.map( ( t ) => t.formatType );
@@ -3589,6 +3638,12 @@ registerFormatType( INFERNO_FORMAT_TYPE, {
 	attributes: { style: 'style' },
 } );
 
+registerFormatType( GLASS_FORMAT_TYPE, {
+	title: __( 'Glass text', 'artistic-creation-environment' ),
+	tagName: 'span',
+	className: 'ace-glass-text',
+} );
+
 // ─── Artistic Button Background ───────────────────────────────────────────────
 
 const ARTISTIC_BTN_TYPES = [
@@ -3599,6 +3654,7 @@ const ARTISTIC_BTN_TYPES = [
 	{ label: __( '🌈 Prism', 'artistic-creation-environment' ), value: 'prism' },
 	{ label: __( '⚗️ Plasma', 'artistic-creation-environment' ), value: 'plasma' },
 	{ label: __( '🔥 Inferno', 'artistic-creation-environment' ), value: 'inferno' },
+	{ label: __( '🪟 Liquid Glass', 'artistic-creation-environment' ), value: 'liquid-glass' },
 ];
 
 const AURORA_PALETTE_OPTIONS = [
@@ -3645,6 +3701,17 @@ addFilter(
 				// All-effect controls
 				aceEffectBlendBg: { type: 'number', default: 1.0 },
 				aceEffectBlendMode: { type: 'string', default: '' },
+				// Liquid Glass button options
+				aceLiquidGlassPreset:     { type: 'string',  default: 'default' },
+				aceLiquidGlassRefraction: { type: 'number',  default: 0 },
+				aceLiquidGlassBevelDepth: { type: 'number',  default: 0.052 },
+				aceLiquidGlassBevelWidth: { type: 'number',  default: 0.211 },
+				aceLiquidGlassFrost:      { type: 'number',  default: 2 },
+				aceLiquidGlassShadow:     { type: 'boolean', default: true },
+				aceLiquidGlassSpecular:   { type: 'boolean', default: true },
+				aceLiquidGlassTilt:       { type: 'boolean', default: false },
+				aceLiquidGlassTiltFactor: { type: 'number',  default: 5 },
+				aceLiquidGlassMagnify:    { type: 'number',  default: 1 },
 			},
 		};
 	}
@@ -3733,6 +3800,31 @@ function getArtisticBtnDataAttrs( attributes ) {
 		if ( aceInfernoColorTemp ) attrs[ 'data-ace-inferno-color' ] = aceInfernoColorTemp;
 		if ( aceInfernoWhips ) attrs[ 'data-ace-inferno-whips' ] = aceInfernoWhips;
 	}
+	if ( type === 'liquid-glass' ) {
+		const {
+			aceLiquidGlassPreset,
+			aceLiquidGlassRefraction,
+			aceLiquidGlassBevelDepth,
+			aceLiquidGlassBevelWidth,
+			aceLiquidGlassFrost,
+			aceLiquidGlassShadow,
+			aceLiquidGlassSpecular,
+			aceLiquidGlassTilt,
+			aceLiquidGlassTiltFactor,
+			aceLiquidGlassMagnify,
+		} = attributes;
+		if ( aceLiquidGlassPreset )           attrs[ 'data-ace-lg-preset'      ] = aceLiquidGlassPreset;
+		if ( aceLiquidGlassRefraction != null ) attrs[ 'data-ace-lg-refraction'  ] = aceLiquidGlassRefraction;
+		if ( aceLiquidGlassBevelDepth != null ) attrs[ 'data-ace-lg-bevel-depth' ] = aceLiquidGlassBevelDepth;
+		if ( aceLiquidGlassBevelWidth != null ) attrs[ 'data-ace-lg-bevel-width' ] = aceLiquidGlassBevelWidth;
+		if ( aceLiquidGlassFrost      != null ) attrs[ 'data-ace-lg-frost'       ] = aceLiquidGlassFrost;
+		attrs[ 'data-ace-lg-shadow'   ] = aceLiquidGlassShadow   !== false ? 'true' : 'false';
+		attrs[ 'data-ace-lg-specular' ] = aceLiquidGlassSpecular !== false ? 'true' : 'false';
+		attrs[ 'data-ace-lg-tilt'     ] = aceLiquidGlassTilt ? 'true' : 'false';
+		if ( aceLiquidGlassTiltFactor != null ) attrs[ 'data-ace-lg-tilt-factor' ] = aceLiquidGlassTiltFactor;
+		if ( aceLiquidGlassMagnify    != null ) attrs[ 'data-ace-lg-magnify'     ] = aceLiquidGlassMagnify;
+	}
+
 	if ( aceEffectBlendBg != null && aceEffectBlendBg !== 1.0 ) {
 		attrs[ 'data-ace-blend-bg' ] = aceEffectBlendBg;
 	}
@@ -3793,6 +3885,16 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 		aceInfernoWhips,
 		aceEffectBlendBg,
 		aceEffectBlendMode,
+		aceLiquidGlassPreset,
+		aceLiquidGlassRefraction,
+		aceLiquidGlassBevelDepth,
+		aceLiquidGlassBevelWidth,
+		aceLiquidGlassFrost,
+		aceLiquidGlassShadow,
+		aceLiquidGlassSpecular,
+		aceLiquidGlassTilt,
+		aceLiquidGlassTiltFactor,
+		aceLiquidGlassMagnify,
 	} = attributes;
 
 	const effectiveType = aceArtisticBtnType || ( aceMagicBg ? 'magic' : '' );
@@ -3995,6 +4097,83 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 					</>
 				) }
 
+				{ effectiveType === 'liquid-glass' && (
+					<>
+						<SelectControl
+							label={ __( 'Glass preset', 'artistic-creation-environment' ) }
+							value={ aceLiquidGlassPreset || 'default' }
+							options={ LIQUID_GLASS_PRESET_OPTIONS }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassPreset: v } ) }
+						/>
+						<RangeControl
+							label={ __( 'Refraction', 'artistic-creation-environment' ) }
+							help={ __( '0 = pure lens, higher = distorted refraction', 'artistic-creation-environment' ) }
+							value={ aceLiquidGlassRefraction != null ? aceLiquidGlassRefraction : 0 }
+							min={ 0 }
+							max={ 0.15 }
+							step={ 0.005 }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassRefraction: v } ) }
+						/>
+						<RangeControl
+							label={ __( 'Bevel depth', 'artistic-creation-environment' ) }
+							value={ aceLiquidGlassBevelDepth != null ? aceLiquidGlassBevelDepth : 0.052 }
+							min={ 0 }
+							max={ 0.3 }
+							step={ 0.005 }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassBevelDepth: v } ) }
+						/>
+						<RangeControl
+							label={ __( 'Bevel width', 'artistic-creation-environment' ) }
+							value={ aceLiquidGlassBevelWidth != null ? aceLiquidGlassBevelWidth : 0.211 }
+							min={ 0 }
+							max={ 0.4 }
+							step={ 0.005 }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassBevelWidth: v } ) }
+						/>
+						<RangeControl
+							label={ __( 'Frost', 'artistic-creation-environment' ) }
+							value={ aceLiquidGlassFrost != null ? aceLiquidGlassFrost : 2 }
+							min={ 0 }
+							max={ 4 }
+							step={ 0.1 }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassFrost: v } ) }
+						/>
+						<ToggleControl
+							label={ __( 'Shadow', 'artistic-creation-environment' ) }
+							checked={ aceLiquidGlassShadow !== false }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassShadow: v } ) }
+						/>
+						<ToggleControl
+							label={ __( 'Specular highlights', 'artistic-creation-environment' ) }
+							checked={ aceLiquidGlassSpecular !== false }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassSpecular: v } ) }
+						/>
+						<ToggleControl
+							label={ __( 'Tilt on hover', 'artistic-creation-environment' ) }
+							checked={ !! aceLiquidGlassTilt }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassTilt: v } ) }
+						/>
+						{ !! aceLiquidGlassTilt && (
+							<RangeControl
+								label={ __( 'Tilt factor', 'artistic-creation-environment' ) }
+								value={ aceLiquidGlassTiltFactor != null ? aceLiquidGlassTiltFactor : 5 }
+								min={ 1 }
+								max={ 20 }
+								step={ 1 }
+								onChange={ ( v ) => setAttributes( { aceLiquidGlassTiltFactor: v } ) }
+							/>
+						) }
+						<RangeControl
+							label={ __( 'Magnify', 'artistic-creation-environment' ) }
+							value={ aceLiquidGlassMagnify != null ? aceLiquidGlassMagnify : 1 }
+							min={ 0.8 }
+							max={ 2 }
+							step={ 0.05 }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassMagnify: v } ) }
+						/>
+					</>
+				) }
+
 				{ !! effectiveType && effectiveType !== 'magic' && (
 					<>
 						<RangeControl
@@ -4124,4 +4303,96 @@ addFilter(
 			...dataAttrs,
 		} );
 	}
+);
+
+
+// ─── Sticky Block Liquid Glass ────────────────────────────────────────────────
+// Adds a "Liquid Glass" panel to any sticky-positioned block in the WP editor.
+// Lets editors apply Apple-style WebGL glass physics to headers, nav bars, etc.
+// that scroll with the page using `position: sticky`.
+
+addFilter(
+'blocks.registerBlockType',
+'artistic-creation-environment/liquid-glass-sticky-attrs',
+( settings, name ) => {
+if ( name === 'artistic-creation-environment/creative' ) { return settings; }
+return {
+...settings,
+attributes: {
+...( settings.attributes || {} ),
+aceStickyGlass:       { type: 'boolean', default: false },
+aceStickyGlassPreset: { type: 'string',  default: 'default' },
+},
+};
+}
+);
+
+const withLiquidGlassStickyControls = createHigherOrderComponent(
+( BlockEdit ) => {
+return ( props ) => {
+const { attributes, setAttributes, name } = props;
+if ( name === 'artistic-creation-environment/creative' ) {
+return el( BlockEdit, props );
+}
+const isSticky = attributes?.style?.position?.type === 'sticky';
+if ( ! isSticky ) {
+return el( BlockEdit, props );
+}
+return el(
+Fragment,
+null,
+el( BlockEdit, props ),
+el(
+InspectorControls,
+null,
+el(
+PanelBody,
+{
+title: __( 'Liquid Glass', 'artistic-creation-environment' ),
+initialOpen: !! attributes.aceStickyGlass,
+},
+el(
+'p',
+{ className: 'components-base-control__help' },
+__( 'Apply WebGL glass physics to this sticky block — content scrolling behind it refracts through the lens in real time.', 'artistic-creation-environment' )
+),
+el( ToggleControl, {
+label: __( 'Enable Liquid Glass', 'artistic-creation-environment' ),
+checked: !! attributes.aceStickyGlass,
+onChange: ( v ) => setAttributes( { aceStickyGlass: v } ),
+} ),
+!! attributes.aceStickyGlass && el( SelectControl, {
+label: __( 'Glass preset', 'artistic-creation-environment' ),
+value: attributes.aceStickyGlassPreset || 'default',
+options: LIQUID_GLASS_PRESET_OPTIONS,
+onChange: ( v ) => setAttributes( { aceStickyGlassPreset: v } ),
+} )
+)
+)
+);
+};
+},
+'withLiquidGlassStickyControls'
+);
+
+addFilter(
+'editor.BlockEdit',
+'artistic-creation-environment/liquid-glass-sticky-controls',
+withLiquidGlassStickyControls
+);
+
+addFilter(
+'blocks.getSaveContent.extraProps',
+'artistic-creation-environment/liquid-glass-sticky-save',
+( extraProps, blockType, attributes ) => {
+if ( blockType.name === 'artistic-creation-environment/creative' ) { return extraProps; }
+if ( ! attributes.aceStickyGlass ) { return extraProps; }
+const isSticky = attributes?.style?.position?.type === 'sticky';
+if ( ! isSticky ) { return extraProps; }
+return {
+...extraProps,
+'data-ace-sticky-glass': 'true',
+'data-ace-lg-preset': attributes.aceStickyGlassPreset || 'default',
+};
+}
 );

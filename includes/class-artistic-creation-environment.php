@@ -113,6 +113,9 @@ class Artistic_Creation_Environment {
 		$button_effects_script_path    = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/ace-btn-effects.js';
 		$scramble_script_path          = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/scramble-text.js';
 		$magic_script_path             = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/magic-text.js';
+		$html2canvas_script_path       = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/html2canvas.vendor.js';
+		$liquidgl_script_path          = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/liquidGL.vendor.js';
+		$liquid_glass_script_path      = ARTISTIC_CREATION_ENVIRONMENT_PATH . 'build/liquid-glass.js';
 
 		if ( file_exists( $script_path ) && file_exists( $asset_path ) ) {
 			$asset = require $asset_path;
@@ -144,6 +147,18 @@ class Artistic_Creation_Environment {
 
 			if ( file_exists( $dust_script_path ) ) {
 				$editor_dependencies[] = 'artistic-creation-environment-dust';
+			}
+
+			if ( file_exists( $html2canvas_script_path ) ) {
+				$editor_dependencies[] = 'artistic-creation-environment-html2canvas';
+			}
+
+			if ( file_exists( $liquidgl_script_path ) ) {
+				$editor_dependencies[] = 'artistic-creation-environment-liquidgl';
+			}
+
+			if ( file_exists( $liquid_glass_script_path ) ) {
+				$editor_dependencies[] = 'artistic-creation-environment-liquid-glass';
 			}
 
 			wp_register_script(
@@ -292,6 +307,38 @@ class Artistic_Creation_Environment {
 				ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/magic-text.js',
 				array(),
 				(string) filemtime( $magic_script_path ),
+				true
+			);
+		}
+
+		// liquidGL vendor libs and our init wrapper — loaded on both editor & frontend.
+		// html2canvas must load before liquidGL, which must load before liquid-glass.
+		if ( file_exists( $html2canvas_script_path ) ) {
+			wp_register_script(
+				'artistic-creation-environment-html2canvas',
+				ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/html2canvas.vendor.js',
+				array(),
+				(string) filemtime( $html2canvas_script_path ),
+				true
+			);
+		}
+
+		if ( file_exists( $liquidgl_script_path ) ) {
+			wp_register_script(
+				'artistic-creation-environment-liquidgl',
+				ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/liquidGL.vendor.js',
+				array( 'artistic-creation-environment-html2canvas' ),
+				(string) filemtime( $liquidgl_script_path ),
+				true
+			);
+		}
+
+		if ( file_exists( $liquid_glass_script_path ) ) {
+			wp_register_script(
+				'artistic-creation-environment-liquid-glass',
+				ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/liquid-glass.js',
+				array( 'artistic-creation-environment-liquidgl' ),
+				(string) filemtime( $liquid_glass_script_path ),
 				true
 			);
 		}
@@ -1037,6 +1084,9 @@ class Artistic_Creation_Environment {
 			'artistic-creation-environment-frontend',
 			'artistic-creation-environment-scramble',
 			'artistic-creation-environment-magic',
+			'artistic-creation-environment-html2canvas',
+			'artistic-creation-environment-liquidgl',
+			'artistic-creation-environment-liquid-glass',
 		) as $handle ) {
 			if ( wp_script_is( $handle, 'registered' ) ) {
 				wp_enqueue_script( $handle );
