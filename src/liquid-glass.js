@@ -51,15 +51,24 @@
 		try {
 			window.liquidGL( Object.assign( { target: '#' + el.id }, opts ) );
 		} catch ( e ) { /* silent — CSS fallback remains active */ }
-		// When WebGL renders correctly, only clear the opaque background tint so the
-		// liquidGL canvas (which sits just below this element) is visible through it.
-		// We deliberately keep backdrop-filter active — it provides immediate visible
-		// glass on page load (before liquidGL has painted its first frame) and layers
-		// CSS blur on top of the WebGL lens distortion for a richer combined look.
-		// Removing backdrop-filter here caused the element to be completely invisible
-		// for the first several frames, making the glass appear to "vanish" on load.
+
+		// The liquidGL Lens constructor runs synchronously and immediately overrides
+		// three inline styles on the element before any async rendering occurs:
+		//   el.style.opacity          = 0       (hides the element entirely)
+		//   el.style.backdropFilter   = "none"  (kills the CSS glass fallback)
+		//   el.style.background       = "transparent"
+		// The element is invisible until liquidGL calls _reveal() async (after
+		// html2canvas captures the page) — this is what caused the header to vanish.
+		//
+		// Fix: undo the opacity and backdrop-filter overrides immediately after the
+		// constructor runs. The element then stays visible with CSS glass while
+		// liquidGL renders its first WebGL frame. When _reveal() fires it restores
+		// opacity to the saved original ('' || 1 = 1) so nothing conflicts.
+		// We leave background:transparent so the WebGL canvas below shows through.
 		if ( ! window.__liquidGLNoWebGL__ ) {
-			el.style.setProperty( 'background', 'transparent', 'important' );
+			el.style.removeProperty( 'opacity' );
+			el.style.removeProperty( 'backdrop-filter' );
+			el.style.removeProperty( '-webkit-backdrop-filter' );
 		}
 	}
 
