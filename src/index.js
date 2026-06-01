@@ -839,6 +839,8 @@ const GLASS_PRESET_VALUES = {
 	pulse:   { refraction: 0.03,  bevelDepth: 0,     frost: 0,   shadow: false, specular: false },
 	frost:   { refraction: 0,     bevelDepth: 0.035, frost: 0.9, shadow: true,  specular: true  },
 	edge:    { refraction: 0.047, bevelDepth: 0.136, frost: 2,   shadow: true,  specular: false },
+	// Custom: same baseline as default — sliders drive everything.
+	custom:  { refraction: 0,     bevelDepth: 0.052, frost: 2,   shadow: true,  specular: true  },
 };
 
 // Converts raw liquidGL-equivalent values to CSS custom property strings.
@@ -3468,6 +3470,7 @@ const LIQUID_GLASS_PRESET_OPTIONS = [
 	{ label: __( 'Alien',   'artistic-creation-environment' ), value: 'alien'   },
 	{ label: __( 'Pulse',   'artistic-creation-environment' ), value: 'pulse'   },
 	{ label: __( 'Edge',    'artistic-creation-environment' ), value: 'edge'    },
+	{ label: __( 'Custom',  'artistic-creation-environment' ), value: 'custom'  },
 ];
 
 // Shared defaults — single source of truth for both button attributes and text toolbar.
@@ -4298,7 +4301,23 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 							label={ __( 'Glass preset', 'artistic-creation-environment' ) }
 							value={ aceLiquidGlassPreset || 'default' }
 							options={ LIQUID_GLASS_PRESET_OPTIONS }
-							onChange={ ( v ) => setAttributes( { aceLiquidGlassPreset: v } ) }
+							onChange={ ( v ) => {
+								// Selecting a named preset snaps all sliders to that preset's values.
+								// Selecting "Custom" leaves the current slider values untouched.
+								if ( v !== 'custom' ) {
+									const p = GLASS_PRESET_VALUES[ v ] || GLASS_PRESET_VALUES.default;
+									setAttributes( {
+										aceLiquidGlassPreset:     v,
+										aceLiquidGlassRefraction: p.refraction,
+										aceLiquidGlassBevelDepth: p.bevelDepth,
+										aceLiquidGlassFrost:      p.frost,
+										aceLiquidGlassShadow:     p.shadow,
+										aceLiquidGlassSpecular:   p.specular,
+									} );
+								} else {
+									setAttributes( { aceLiquidGlassPreset: v } );
+								}
+							} }
 						/>
 						<RangeControl
 							label={ __( 'Refraction', 'artistic-creation-environment' ) }
@@ -4307,7 +4326,7 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 							min={ 0 }
 							max={ 0.15 }
 							step={ 0.005 }
-							onChange={ ( v ) => setAttributes( { aceLiquidGlassRefraction: v } ) }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassRefraction: v, aceLiquidGlassPreset: 'custom' } ) }
 						/>
 						<RangeControl
 							label={ __( 'Bevel depth', 'artistic-creation-environment' ) }
@@ -4315,7 +4334,7 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 							min={ 0 }
 							max={ 0.3 }
 							step={ 0.005 }
-							onChange={ ( v ) => setAttributes( { aceLiquidGlassBevelDepth: v } ) }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassBevelDepth: v, aceLiquidGlassPreset: 'custom' } ) }
 						/>
 						<RangeControl
 							label={ __( 'Bevel width', 'artistic-creation-environment' ) }
@@ -4323,7 +4342,7 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 							min={ 0 }
 							max={ 0.4 }
 							step={ 0.005 }
-							onChange={ ( v ) => setAttributes( { aceLiquidGlassBevelWidth: v } ) }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassBevelWidth: v, aceLiquidGlassPreset: 'custom' } ) }
 						/>
 						<RangeControl
 							label={ __( 'Frost', 'artistic-creation-environment' ) }
@@ -4331,17 +4350,17 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 							min={ 0 }
 							max={ 4 }
 							step={ 0.1 }
-							onChange={ ( v ) => setAttributes( { aceLiquidGlassFrost: v } ) }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassFrost: v, aceLiquidGlassPreset: 'custom' } ) }
 						/>
 						<ToggleControl
 							label={ __( 'Shadow', 'artistic-creation-environment' ) }
 							checked={ aceLiquidGlassShadow !== false }
-							onChange={ ( v ) => setAttributes( { aceLiquidGlassShadow: v } ) }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassShadow: v, aceLiquidGlassPreset: 'custom' } ) }
 						/>
 						<ToggleControl
 							label={ __( 'Specular highlights', 'artistic-creation-environment' ) }
 							checked={ aceLiquidGlassSpecular !== false }
-							onChange={ ( v ) => setAttributes( { aceLiquidGlassSpecular: v } ) }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassSpecular: v, aceLiquidGlassPreset: 'custom' } ) }
 						/>
 						<ToggleControl
 							label={ __( 'Tilt on hover', 'artistic-creation-environment' ) }
@@ -4637,7 +4656,24 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 									label={ __( 'Glass preset', 'artistic-creation-environment' ) }
 									value={ attributes.aceStickyGlassPreset || 'default' }
 									options={ LIQUID_GLASS_PRESET_OPTIONS }
-									onChange={ ( v ) => setAttributes( { aceStickyGlassPreset: v } ) }
+									onChange={ ( v ) => {
+										// Selecting a named preset clears all per-control overrides so
+										// the sliders snap to the preset's values.
+										// Selecting "Custom" keeps the current slider values.
+										if ( v !== 'custom' ) {
+											setAttributes( {
+												aceStickyGlassPreset:      v,
+												aceStickyGlassBlur:        null,
+												aceStickyGlassSaturate:    null,
+												aceStickyGlassBrightness:  null,
+												aceStickyGlassEdgeOpacity: null,
+												aceStickyGlassEdgeShine:   null,
+												aceStickyGlassShadow:      null,
+											} );
+										} else {
+											setAttributes( { aceStickyGlassPreset: v } );
+										}
+									} }
 								/>
 
 								<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
@@ -4649,7 +4685,7 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 									min={ 0 }
 									max={ 40 }
 									step={ 1 }
-									onChange={ ( v ) => setAttributes( { aceStickyGlassBlur: v } ) }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassBlur: v, aceStickyGlassPreset: 'custom' } ) }
 								/>
 								<RangeControl
 									label={ __( 'Saturation', 'artistic-creation-environment' ) }
@@ -4657,7 +4693,7 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 									min={ 100 }
 									max={ 300 }
 									step={ 5 }
-									onChange={ ( v ) => setAttributes( { aceStickyGlassSaturate: v } ) }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassSaturate: v, aceStickyGlassPreset: 'custom' } ) }
 								/>
 								<RangeControl
 									label={ __( 'Brightness', 'artistic-creation-environment' ) }
@@ -4665,7 +4701,7 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 									min={ 0.8 }
 									max={ 1.5 }
 									step={ 0.02 }
-									onChange={ ( v ) => setAttributes( { aceStickyGlassBrightness: v } ) }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassBrightness: v, aceStickyGlassPreset: 'custom' } ) }
 								/>
 
 								<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
@@ -4678,13 +4714,13 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 									min={ 0 }
 									max={ 100 }
 									step={ 1 }
-									onChange={ ( v ) => setAttributes( { aceStickyGlassEdgeOpacity: v } ) }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassEdgeOpacity: v, aceStickyGlassPreset: 'custom' } ) }
 								/>
 								<ToggleControl
 									label={ __( 'Edge shine (inner glow)', 'artistic-creation-environment' ) }
 									help={ __( 'Adds a specular highlight on the top inner edge — classic glass bezel look.', 'artistic-creation-environment' ) }
 									checked={ attributes.aceStickyGlassEdgeShine ?? ( GLASS_PRESET_VALUES[ attributes.aceStickyGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).specular }
-									onChange={ ( v ) => setAttributes( { aceStickyGlassEdgeShine: v } ) }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassEdgeShine: v, aceStickyGlassPreset: 'custom' } ) }
 								/>
 
 								<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
@@ -4693,7 +4729,7 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 								<ToggleControl
 									label={ __( 'Drop shadow', 'artistic-creation-environment' ) }
 									checked={ attributes.aceStickyGlassShadow ?? ( GLASS_PRESET_VALUES[ attributes.aceStickyGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).shadow }
-									onChange={ ( v ) => setAttributes( { aceStickyGlassShadow: v } ) }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassShadow: v, aceStickyGlassPreset: 'custom' } ) }
 								/>
 
 								<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
@@ -4757,11 +4793,33 @@ addFilter(
 ( extraProps, blockType, attributes ) => {
 if ( blockType.name === 'artistic-creation-environment/creative' ) { return extraProps; }
 if ( ! attributes.aceStickyGlass ) { return extraProps; }
+const lgPreset = GLASS_PRESET_VALUES[ attributes.aceStickyGlassPreset ] || GLASS_PRESET_VALUES.default;
+// Derive liquidGL WebGL parameters from the CSS-control overrides (or fall back to
+// the preset's raw values).  These are baked as data-ace-lg-* attrs so liquid-glass.js
+// can initialise the WebGL renderer with the correct settings.
+const lgFrost   = attributes.aceStickyGlassBlur        != null
+	? attributes.aceStickyGlassBlur / 8
+	: lgPreset.frost;
+const lgRefr    = attributes.aceStickyGlassSaturate    != null
+	? Math.max( 0, ( attributes.aceStickyGlassSaturate - 150 ) / 600 )
+	: lgPreset.refraction;
+const lgBevelD  = attributes.aceStickyGlassEdgeOpacity != null
+	? Math.max( 0, attributes.aceStickyGlassEdgeOpacity / 100 - 0.18 )
+	: lgPreset.bevelDepth;
+const lgShadow  = attributes.aceStickyGlassShadow  ?? lgPreset.shadow;
+const lgSpecular = attributes.aceStickyGlassEdgeShine ?? lgPreset.specular;
 const result = {
 ...extraProps,
 'data-ace-sticky-glass': 'true',
-'data-ace-lg-preset': attributes.aceStickyGlassPreset || 'default',
-'data-ace-lg-tilt': attributes.aceStickyGlassTilt ? 'true' : 'false',
+'data-ace-lg-preset':      attributes.aceStickyGlassPreset || 'default',
+'data-ace-lg-frost':       lgFrost.toFixed( 3 ),
+'data-ace-lg-refraction':  lgRefr.toFixed( 4 ),
+'data-ace-lg-bevel-depth': lgBevelD.toFixed( 4 ),
+'data-ace-lg-bevel-width': '0.211',
+'data-ace-lg-shadow':      lgShadow   ? 'true' : 'false',
+'data-ace-lg-specular':    lgSpecular ? 'true' : 'false',
+'data-ace-lg-magnify':     '1',
+'data-ace-lg-tilt':        attributes.aceStickyGlassTilt ? 'true' : 'false',
 style: {
 	...( extraProps.style || {} ),
 	...applyGroupGlassOverrides(

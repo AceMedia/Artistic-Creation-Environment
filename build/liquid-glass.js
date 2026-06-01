@@ -16,7 +16,49 @@
 		'pulse'  : { refraction: 0.03,  bevelDepth: 0,     frost: 0,   shadow: false, specular: false },
 		'frost'  : { refraction: 0,     bevelDepth: 0.035, frost: 0.9, shadow: true,  specular: true  },
 		'edge'   : { refraction: 0.047, bevelDepth: 0.136, frost: 2,   shadow: true,  specular: false },
+		'custom' : { refraction: 0,     bevelDepth: 0.052, frost: 2,   shadow: true,  specular: true  },
 	};
+
+	// Reads liquidGL options from an element's data-ace-lg-* attributes.
+	// Falls back to the preset's raw values when an attribute is absent.
+	var _lgIdCounter = 0;
+	function readLGOptions( el ) {
+		var preset = PRESETS[ el.dataset.aceLgPreset ] || PRESETS['default'];
+		function num( val, fallback ) { return ( val !== undefined && val !== '' ) ? parseFloat( val ) : fallback; }
+		return {
+			refraction: num( el.dataset.aceLgRefraction,  preset.refraction ),
+			bevelDepth: num( el.dataset.aceLgBevelDepth,  preset.bevelDepth ),
+			bevelWidth: num( el.dataset.aceLgBevelWidth,  0.211 ),
+			frost:      num( el.dataset.aceLgFrost,       preset.frost ),
+			specular:   el.dataset.aceLgSpecular !== 'false',
+			shadow:     el.dataset.aceLgShadow   !== 'false',
+			tilt:       el.dataset.aceLgTilt === 'true',
+			tiltFactor: num( el.dataset.aceLgTiltFactor, 5 ),
+			magnify:    num( el.dataset.aceLgMagnify,    1 ),
+		};
+	}
+
+	// Attempt WebGL glass rendering via the liquidGL library for a single element.
+	// When WebGL is available, liquidGL places a fixed-position canvas clipped to
+	// the element's bounds — we then suppress the CSS backdrop-filter on that element
+	// so the two glass layers don't stack and double-blur.
+	// Silently falls back to CSS if liquidGL is absent or WebGL is unavailable.
+	function callLiquidGL( el, opts ) {
+		if ( typeof window.liquidGL !== 'function' ) { return; }
+		if ( ! el.id ) {
+			el.id = 'ace-gl-' + ( ++_lgIdCounter );
+		}
+		try {
+			window.liquidGL( Object.assign( { target: '#' + el.id }, opts ) );
+		} catch ( e ) { /* silent — CSS fallback remains active */ }
+		// If WebGL rendered correctly, disable the CSS backdrop-filter and background
+		// on this element so the WebGL canvas is the sole glass layer.
+		if ( ! window.__liquidGLNoWebGL__ ) {
+			el.style.setProperty( 'backdrop-filter',         'none', 'important' );
+			el.style.setProperty( '-webkit-backdrop-filter', 'none', 'important' );
+			el.style.setProperty( 'background',              'transparent', 'important' );
+		}
+	}
 
 	// Convert raw preset values to CSS custom property string/values.
 	function presetToCSSVars( p ) {
@@ -236,10 +278,12 @@
 			applyTintFromDataAttrs( wrapper );
 			link.style.position = link.style.position || 'relative';
 			link.style.zIndex   = link.style.zIndex   || '1';
-			// Tilt on hover — reads data-ace-lg-tilt from the wrapper (set by the editor).
-			if ( wrapper.dataset.aceLgTilt === 'true' ) {
-				var factor = wrapper.dataset.aceLgTiltFactor;
-				bindTilt( wrapper, wrapper, factor );
+			// WebGL glass via liquidGL — data attrs come from the wrapper element.
+			callLiquidGL( link, readLGOptions( wrapper ) );
+			// CSS tilt is only the fallback for when WebGL is not available;
+			// liquidGL handles its own tilt when WebGL renders.
+			if ( wrapper.dataset.aceLgTilt === 'true' && window.__liquidGLNoWebGL__ ) {
+				bindTilt( wrapper, wrapper, wrapper.dataset.aceLgTiltFactor );
 			}
 		} );
 	}
@@ -261,6 +305,8 @@
 			block.style.isolation = 'auto';
 			inner.style.position  = inner.style.position || 'relative';
 			inner.style.zIndex    = inner.style.zIndex   || '1';
+			// WebGL glass via liquidGL using the preset values from the block element.
+			callLiquidGL( inner, readLGOptions( block ) );
 		} );
 	}
 
@@ -272,8 +318,10 @@
 			}
 			applyTintFromDataAttrs( el );
 			el.style.isolation = 'auto';
-			// Tilt on hover — opt-in via data-ace-lg-tilt attribute.
-			if ( el.dataset.aceLgTilt === 'true' ) {
+			// WebGL glass via liquidGL — options baked as data attrs by the save filter.
+			callLiquidGL( el, readLGOptions( el ) );
+			// CSS tilt fallback when WebGL is not available.
+			if ( el.dataset.aceLgTilt === 'true' && window.__liquidGLNoWebGL__ ) {
 				bindTilt( el, el, el.dataset.aceLgTiltFactor );
 			}
 		} );
