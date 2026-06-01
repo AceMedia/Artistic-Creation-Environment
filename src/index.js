@@ -625,7 +625,9 @@ const ATTRIBUTE_DEFINITIONS = {
 	aceCreativeDustColor: { type: 'string', default: '#b8a8f8' },
 	aceCreativeDustPointerMode: { type: 'string', default: 'attract' },
 	// Liquid Glass content overlay preset for Creative blocks.
-	aceCreativeLiquidGlassPreset: { type: 'string', default: 'default' },
+	aceCreativeLiquidGlassPreset:      { type: 'string', default: 'default' },
+	aceCreativeLiquidGlassTintColor:   { type: 'string', default: '' },
+	aceCreativeLiquidGlassTintOpacity: { type: 'number', default: 15 },
 };
 
 const resolveValue = ( attributes, key ) =>
@@ -840,31 +842,59 @@ const GLASS_PRESET_VALUES = {
 };
 
 // Converts raw liquidGL-equivalent values to CSS custom property strings.
-// The same CSS vars are used in editor.scss (via var()) so any change to a
-// glass control in the inspector updates the editor preview immediately.
-function glassValsToCSSVars( frost, refraction, bevelDepth, shadow, specular ) {
-	const blur    = Math.round( frost * 8 );
-	const sat     = Math.round( 150 + refraction * 600 );
-	const bright  = specular ? 1.2 : 1.08;
-	const tintA   = ( 0.06 + refraction * 0.5 ).toFixed( 2 );
-	const borderA = ( 0.18 + bevelDepth ).toFixed( 2 );
-	const shadowV = shadow
+// tintColor  — any CSS <color> value (hex, rgb, or var(--wp--...)) to tint the glass.
+//              When set, --ace-glass-tint-color + --ace-glass-tint-amount are also output
+//              so modern CSS can use color-mix() for a clean semi-transparent tint.
+// tintAmount — tint opacity as a 0-100 integer percentage (default: derived from refraction).
+function glassValsToCSSVars( frost, refraction, bevelDepth, shadow, specular, tintColor, tintAmount ) {
+	const blur       = Math.round( frost * 8 );
+	const sat        = Math.round( 150 + refraction * 600 );
+	const bright     = specular ? 1.2 : 1.08;
+	const defaultTintA = ( 0.06 + refraction * 0.5 ).toFixed( 2 );
+	const borderA    = ( 0.18 + bevelDepth ).toFixed( 2 );
+	const shadowV    = shadow
 		? `0 6px 28px rgba(0,0,0,0.14)${ specular ? ', inset 0 1px 0 rgba(255,255,255,0.5)' : '' }`
 		: 'none';
-	return {
+
+	const vars = {
 		'--ace-glass-blur'      : `${ blur }px`,
 		'--ace-glass-saturate'  : `${ sat }%`,
 		'--ace-glass-brightness': `${ bright }`,
-		'--ace-glass-tint'      : `rgba(255,255,255,${ tintA })`,
+		'--ace-glass-tint'      : `rgba(255,255,255,${ defaultTintA })`,
 		'--ace-glass-shadow'    : shadowV,
 		'--ace-glass-border'    : `rgba(255,255,255,${ borderA })`,
 	};
+
+	// Tint colour support — used by CSS color-mix() in the glass rules.
+	// The --ace-glass-tint-color var can hold any CSS colour including theme
+	// CSS custom properties (var(--wp--preset--color--xxx)), which resolve at
+	// paint time in the browser with no JS parsing needed.
+	if ( tintColor ) {
+		const pct = tintAmount != null ? Math.round( tintAmount ) : Math.round( defaultTintA * 100 );
+		vars[ '--ace-glass-tint-color'  ] = tintColor;
+		vars[ '--ace-glass-tint-amount' ] = `${ pct }%`;
+	}
+
+	return vars;
 }
 
-// CSS vars from a preset name only (Creative block + sticky blocks use this).
-function getGlassCSSVarsFromPreset( presetName ) {
-	const p = GLASS_PRESET_VALUES[ presetName ] || GLASS_PRESET_VALUES.default;
-	return glassValsToCSSVars( p.frost, p.refraction, p.bevelDepth, p.shadow, p.specular );
+// Returns CSS vars for a given preset name, optionally with a custom tint.
+// tintOpts = { color?: string, amount?: number, wpBg?: string }
+// wpBg is the WP-set background colour (auto-detected from block attributes);
+// color is an explicit tint override. color takes priority over wpBg.
+function getGlassCSSVarsFromPreset( presetName, tintOpts ) {
+	const p       = GLASS_PRESET_VALUES[ presetName ] || GLASS_PRESET_VALUES.default;
+	const tintSrc = tintOpts?.color || tintOpts?.wpBg || null;
+	const tintAmt = tintOpts?.amount != null ? tintOpts.amount : null;
+	return glassValsToCSSVars( p.frost, p.refraction, p.bevelDepth, p.shadow, p.specular, tintSrc, tintAmt );
+}
+
+// Reads the WP native background colour from block attributes.
+// Returns the value exactly as WP stores it — could be a hex string or
+// a CSS variable reference like "var(--wp--preset--color--primary)" — so it
+// can be dropped straight into a CSS custom property and resolved by the browser.
+function getWPBlockBgColor( attributes ) {
+	return attributes?.style?.color?.background || null;
 }
 
 const getBlockDataAttributes = ( attributes = {} ) =>
@@ -898,7 +928,11 @@ const getEditorBlockStyle = ( attributes = {} ) => {
 		...contentStyle,
 		...childInteractivityStyle,
 		...verticalAlignStyle,
-		...( isGlass ? getGlassCSSVarsFromPreset( attributes.aceCreativeLiquidGlassPreset || 'default' ) : {} ),
+		...( isGlass ? getGlassCSSVarsFromPreset( attributes.aceCreativeLiquidGlassPreset || 'default', {
+			color : attributes.aceCreativeLiquidGlassTintColor || null,
+			wpBg  : getWPBlockBgColor( attributes ),
+			amount: attributes.aceCreativeLiquidGlassTintOpacity != null ? attributes.aceCreativeLiquidGlassTintOpacity : null,
+		} ) : {} ),
 	};
 
 	if ( attributes?.style?.dimensions?.minHeight ) {
@@ -917,7 +951,11 @@ const getSavedBlockStyle = ( attributes = {} ) => {
 		...( getContentEffectStyle( attributes ) || {} ),
 		...( getChildInteractivityStyle( attributes ) || {} ),
 		...( getVerticalAlignStyle( attributes ) || {} ),
-		...( isGlass ? getGlassCSSVarsFromPreset( attributes.aceCreativeLiquidGlassPreset || 'default' ) : {} ),
+		...( isGlass ? getGlassCSSVarsFromPreset( attributes.aceCreativeLiquidGlassPreset || 'default', {
+			color : attributes.aceCreativeLiquidGlassTintColor || null,
+			wpBg  : getWPBlockBgColor( attributes ),
+			amount: attributes.aceCreativeLiquidGlassTintOpacity != null ? attributes.aceCreativeLiquidGlassTintOpacity : null,
+		} ) : {} ),
 	};
 
 	return Object.keys( blockStyle ).length ? blockStyle : undefined;
@@ -2656,6 +2694,7 @@ const CreativeBlockEdit = ( props = {} ) => {
 						) }
 					/>
 					{ attributes.aceCreativeContentEffectPreset === 'liquid-glass' && (
+						<>
 						<SelectControl
 							label={ __( 'Glass preset', 'artistic-creation-environment' ) }
 							help={ __( 'Real-time WebGL glass physics. Falls back to CSS blur on non-WebGL devices.', 'artistic-creation-environment' ) }
@@ -2663,6 +2702,26 @@ const CreativeBlockEdit = ( props = {} ) => {
 							options={ LIQUID_GLASS_PRESET_OPTIONS }
 							onChange={ ( v ) => setAttributes( { aceCreativeLiquidGlassPreset: v } ) }
 						/>
+						<p style={ { fontWeight: 600, marginBottom: 4 } }>
+							{ __( 'Tint colour', 'artistic-creation-environment' ) }
+						</p>
+						<p style={ { fontSize: 11, color: '#757575', marginTop: 0, marginBottom: 8 } }>
+							{ __( "Tints the glass — auto-picks the block's background colour, or choose a custom colour.", 'artistic-creation-environment' ) }
+						</p>
+						<ColorPalette
+							value={ attributes.aceCreativeLiquidGlassTintColor || '' }
+							onChange={ ( v ) => setAttributes( { aceCreativeLiquidGlassTintColor: v || '' } ) }
+							clearable={ true }
+						/>
+						<RangeControl
+							label={ __( 'Tint strength', 'artistic-creation-environment' ) }
+							value={ attributes.aceCreativeLiquidGlassTintOpacity != null ? attributes.aceCreativeLiquidGlassTintOpacity : 15 }
+							min={ 0 }
+							max={ 80 }
+							step={ 5 }
+							onChange={ ( v ) => setAttributes( { aceCreativeLiquidGlassTintOpacity: v } ) }
+						/>
+						</>
 					) }
 					<SelectControl
 						label={ __( 'Blend mode', 'artistic-creation-environment' ) }
@@ -3152,12 +3211,30 @@ const CreativeChildContentEffectsControls = ( props = {} ) => {
 					onChange={ applyCreativeContentPreset }
 				/>
 				{ creativeAttributes.aceCreativeContentEffectPreset === 'liquid-glass' && (
+					<>
 					<SelectControl
 						label={ __( 'Glass preset', 'artistic-creation-environment' ) }
 						value={ creativeAttributes.aceCreativeLiquidGlassPreset || 'default' }
 						options={ LIQUID_GLASS_PRESET_OPTIONS }
 						onChange={ ( v ) => setCreativeAttributes( { aceCreativeLiquidGlassPreset: v } ) }
 					/>
+					<p style={ { fontWeight: 600, marginBottom: 4 } }>
+						{ __( 'Tint colour', 'artistic-creation-environment' ) }
+					</p>
+					<ColorPalette
+						value={ creativeAttributes.aceCreativeLiquidGlassTintColor || '' }
+						onChange={ ( v ) => setCreativeAttributes( { aceCreativeLiquidGlassTintColor: v || '' } ) }
+						clearable={ true }
+					/>
+					<RangeControl
+						label={ __( 'Tint strength', 'artistic-creation-environment' ) }
+						value={ creativeAttributes.aceCreativeLiquidGlassTintOpacity != null ? creativeAttributes.aceCreativeLiquidGlassTintOpacity : 15 }
+						min={ 0 }
+						max={ 80 }
+						step={ 5 }
+						onChange={ ( v ) => setCreativeAttributes( { aceCreativeLiquidGlassTintOpacity: v } ) }
+					/>
+					</>
 				) }
 				<SelectControl
 					label={ __( 'Blend mode', 'artistic-creation-environment' ) }
@@ -3756,6 +3833,8 @@ addFilter(
 				aceLiquidGlassTilt:       { type: 'boolean', default: false },
 				aceLiquidGlassTiltFactor: { type: 'number',  default: 5 },
 				aceLiquidGlassMagnify:    { type: 'number',  default: 1 },
+				aceLiquidGlassTintColor:  { type: 'string',  default: '' },
+				aceLiquidGlassTintOpacity:{ type: 'number',  default: 15 },
 			},
 		};
 	}
@@ -3787,6 +3866,8 @@ function getGlassCSSVarsFromAttrs( attributes ) {
 		aceLiquidGlassFrost,
 		aceLiquidGlassShadow,
 		aceLiquidGlassSpecular,
+		aceLiquidGlassTintColor,
+		aceLiquidGlassTintOpacity,
 	} = attributes;
 	const p       = GLASS_PRESET_VALUES[ aceLiquidGlassPreset ] || GLASS_PRESET_VALUES.default;
 	const frost   = aceLiquidGlassFrost      != null ? aceLiquidGlassFrost      : p.frost;
@@ -3794,7 +3875,11 @@ function getGlassCSSVarsFromAttrs( attributes ) {
 	const bevel   = aceLiquidGlassBevelDepth != null ? aceLiquidGlassBevelDepth : p.bevelDepth;
 	const shadow  = aceLiquidGlassShadow     != null ? aceLiquidGlassShadow     : p.shadow;
 	const specular = aceLiquidGlassSpecular  != null ? aceLiquidGlassSpecular   : p.specular;
-	return glassValsToCSSVars( frost, refr, bevel, shadow, specular );
+	// Tint: use explicit tint colour if set, else fall back to WP background colour.
+	const wpBg    = getWPBlockBgColor( attributes );
+	const tintSrc = aceLiquidGlassTintColor || wpBg || null;
+	const tintAmt = aceLiquidGlassTintOpacity != null ? aceLiquidGlassTintOpacity : null;
+	return glassValsToCSSVars( frost, refr, bevel, shadow, specular, tintSrc, tintAmt );
 }
 
 // CSS-variable style — magic uses a gradient CSS var; liquid-glass uses CSS vars
@@ -3881,6 +3966,8 @@ function getArtisticBtnDataAttrs( attributes ) {
 			aceLiquidGlassTilt,
 			aceLiquidGlassTiltFactor,
 			aceLiquidGlassMagnify,
+			aceLiquidGlassTintColor,
+			aceLiquidGlassTintOpacity,
 		} = attributes;
 		if ( aceLiquidGlassPreset )           attrs[ 'data-ace-lg-preset'      ] = aceLiquidGlassPreset;
 		if ( aceLiquidGlassRefraction != null ) attrs[ 'data-ace-lg-refraction'  ] = aceLiquidGlassRefraction;
@@ -3892,6 +3979,11 @@ function getArtisticBtnDataAttrs( attributes ) {
 		attrs[ 'data-ace-lg-tilt'     ] = aceLiquidGlassTilt ? 'true' : 'false';
 		if ( aceLiquidGlassTiltFactor != null ) attrs[ 'data-ace-lg-tilt-factor' ] = aceLiquidGlassTiltFactor;
 		if ( aceLiquidGlassMagnify    != null ) attrs[ 'data-ace-lg-magnify'     ] = aceLiquidGlassMagnify;
+		// Tint: explicit tint colour takes priority; WP background colour is auto-detected by liquid-glass.js
+		const wpBg = getWPBlockBgColor( attributes );
+		if ( aceLiquidGlassTintColor ) attrs[ 'data-ace-glass-tint' ] = aceLiquidGlassTintColor;
+		else if ( wpBg )              attrs[ 'data-ace-glass-tint' ] = wpBg;
+		if ( aceLiquidGlassTintOpacity != null ) attrs[ 'data-ace-glass-tint-opacity' ] = aceLiquidGlassTintOpacity;
 	}
 
 	if ( aceEffectBlendBg != null && aceEffectBlendBg !== 1.0 ) {
@@ -3964,6 +4056,8 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 		aceLiquidGlassTilt,
 		aceLiquidGlassTiltFactor,
 		aceLiquidGlassMagnify,
+		aceLiquidGlassTintColor,
+		aceLiquidGlassTintOpacity,
 	} = attributes;
 
 	const effectiveType = aceArtisticBtnType || ( aceMagicBg ? 'magic' : '' );
@@ -4240,6 +4334,26 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 							step={ 0.05 }
 							onChange={ ( v ) => setAttributes( { aceLiquidGlassMagnify: v } ) }
 						/>
+						<p style={ { fontWeight: 600, marginBottom: 4 } }>
+							{ __( 'Tint colour', 'artistic-creation-environment' ) }
+						</p>
+						<p style={ { fontSize: 11, color: '#757575', marginTop: 0, marginBottom: 8 } }>
+							{ __( "Tints the glass with a colour — uses your block's background colour automatically, or pick a custom one below.", 'artistic-creation-environment' ) }
+						</p>
+						<ColorPalette
+							value={ aceLiquidGlassTintColor || '' }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassTintColor: v || '' } ) }
+							clearable={ true }
+						/>
+						<RangeControl
+							label={ __( 'Tint strength', 'artistic-creation-environment' ) }
+							value={ aceLiquidGlassTintColor ? ( aceLiquidGlassTintOpacity != null ? aceLiquidGlassTintOpacity : 15 ) : 0 }
+							min={ 0 }
+							max={ 80 }
+							step={ 5 }
+							disabled={ ! aceLiquidGlassTintColor && ! getWPBlockBgColor( attributes ) }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassTintOpacity: v } ) }
+						/>
 					</>
 				) }
 
@@ -4389,10 +4503,12 @@ return {
 ...settings,
 attributes: {
 ...( settings.attributes || {} ),
-aceStickyGlass:           { type: 'boolean', default: false },
-aceStickyGlassPreset:     { type: 'string',  default: 'default' },
-aceStickyGlassTilt:       { type: 'boolean', default: false },
-aceStickyGlassTiltFactor: { type: 'number',  default: 5 },
+aceStickyGlass:            { type: 'boolean', default: false },
+aceStickyGlassPreset:      { type: 'string',  default: 'default' },
+aceStickyGlassTilt:        { type: 'boolean', default: false },
+aceStickyGlassTiltFactor:  { type: 'number',  default: 5 },
+aceStickyGlassTintColor:   { type: 'string',  default: '' },
+aceStickyGlassTintOpacity: { type: 'number',  default: 15 },
 },
 };
 }
@@ -4409,12 +4525,22 @@ const withGlassGroupWrapper = createHigherOrderComponent(
 			if ( ( ! isGroup && ! isSticky ) || ! attributes.aceStickyGlass ) {
 				return <BlockListBlock { ...props } />;
 			}
-			const glassVars = getGlassCSSVarsFromPreset( attributes.aceStickyGlassPreset || 'default' );
+			const glassVars = getGlassCSSVarsFromPreset(
+				attributes.aceStickyGlassPreset || 'default',
+				{
+					color : attributes.aceStickyGlassTintColor || null,
+					wpBg  : getWPBlockBgColor( attributes ),
+					amount: attributes.aceStickyGlassTintOpacity != null ? attributes.aceStickyGlassTintOpacity : null,
+				}
+			);
+			const tintSrc = attributes.aceStickyGlassTintColor || getWPBlockBgColor( attributes ) || null;
 			const wrapperProps = {
 				...( props.wrapperProps || {} ),
 				'data-ace-sticky-glass': 'true',
 				'data-ace-lg-tilt': attributes.aceStickyGlassTilt ? 'true' : 'false',
 				'data-ace-lg-tilt-factor': String( attributes.aceStickyGlassTiltFactor ?? 5 ),
+				...( tintSrc ? { 'data-ace-glass-tint': tintSrc } : {} ),
+				...( attributes.aceStickyGlassTintOpacity != null ? { 'data-ace-glass-tint-opacity': String( attributes.aceStickyGlassTintOpacity ) } : {} ),
 				style: {
 					...( props.wrapperProps?.style || {} ),
 					...glassVars,
@@ -4484,6 +4610,25 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 										onChange={ ( v ) => setAttributes( { aceStickyGlassTiltFactor: v } ) }
 									/>
 								) }
+								<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 8 } }>
+									{ __( 'Tint colour', 'artistic-creation-environment' ) }
+								</p>
+								<p style={ { fontSize: 11, color: '#757575', marginTop: 0, marginBottom: 8 } }>
+									{ __( "Tints the glass. If you've set a background colour on this block it'll be picked up automatically — or choose a custom tint below.", 'artistic-creation-environment' ) }
+								</p>
+								<ColorPalette
+									value={ attributes.aceStickyGlassTintColor || '' }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassTintColor: v || '' } ) }
+									clearable={ true }
+								/>
+								<RangeControl
+									label={ __( 'Tint strength', 'artistic-creation-environment' ) }
+									value={ attributes.aceStickyGlassTintOpacity != null ? attributes.aceStickyGlassTintOpacity : 15 }
+									min={ 0 }
+									max={ 80 }
+									step={ 5 }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassTintOpacity: v } ) }
+								/>
 								</>
 							) }
 						</PanelBody>
@@ -4514,12 +4659,20 @@ const result = {
 'data-ace-lg-tilt': attributes.aceStickyGlassTilt ? 'true' : 'false',
 style: {
 	...( extraProps.style || {} ),
-	...getGlassCSSVarsFromPreset( attributes.aceStickyGlassPreset || 'default' ),
+	...getGlassCSSVarsFromPreset( attributes.aceStickyGlassPreset || 'default', {
+		color : attributes.aceStickyGlassTintColor || null,
+		wpBg  : getWPBlockBgColor( attributes ),
+		amount: attributes.aceStickyGlassTintOpacity != null ? attributes.aceStickyGlassTintOpacity : null,
+	} ),
 },
 };
 if ( attributes.aceStickyGlassTilt && attributes.aceStickyGlassTiltFactor != null ) {
 	result[ 'data-ace-lg-tilt-factor' ] = String( attributes.aceStickyGlassTiltFactor );
 }
+// Tint data attrs for frontend JS fallback
+const tintSrc = attributes.aceStickyGlassTintColor || getWPBlockBgColor( attributes ) || null;
+if ( tintSrc ) result[ 'data-ace-glass-tint' ] = tintSrc;
+if ( attributes.aceStickyGlassTintOpacity != null ) result[ 'data-ace-glass-tint-opacity' ] = String( attributes.aceStickyGlassTintOpacity );
 return result;
 }
 );

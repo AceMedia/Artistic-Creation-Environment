@@ -674,7 +674,17 @@ background-position: 170% center, 100% center;
 
 // Glass buttons in the editor.
 .wp-block-button.ace-artistic-btn--liquid-glass .wp-block-button__link {
+	// Fallback for browsers without color-mix() support.
 	background: var( --ace-glass-tint, rgba( 255, 255, 255, 0.12 ) ) !important;
+	// Modern: tinted glass using the --ace-glass-tint-color + --ace-glass-tint-amount vars
+	// set by the editor when a tint colour is chosen or a WP background colour is detected.
+	@supports ( background: color-mix( in srgb, white 1%, transparent ) ) {
+		background: color-mix(
+			in srgb,
+			var( --ace-glass-tint-color, white ) var( --ace-glass-tint-amount, var( --ace-glass-tint, 12% ) ),
+			transparent
+		) !important;
+	}
 	backdrop-filter:
 		blur( var( --ace-glass-blur, 16px ) )
 		saturate( var( --ace-glass-saturate, 180% ) )
@@ -693,6 +703,13 @@ background-position: 170% center, 100% center;
 .wp-block-artistic-creation-environment-creative[data-ace-liquid-glass='true']
 	.artistic-creative__inner-container {
 	background: var( --ace-glass-tint, rgba( 255, 255, 255, 0.08 ) ) !important;
+	@supports ( background: color-mix( in srgb, white 1%, transparent ) ) {
+		background: color-mix(
+			in srgb,
+			var( --ace-glass-tint-color, white ) var( --ace-glass-tint-amount, var( --ace-glass-tint, 8% ) ),
+			transparent
+		) !important;
+	}
 	backdrop-filter:
 		blur( var( --ace-glass-blur, 20px ) )
 		saturate( var( --ace-glass-saturate, 150% ) )
@@ -708,6 +725,13 @@ background-position: 170% center, 100% center;
 // Sticky blocks with glass enabled in the editor.
 [data-ace-sticky-glass='true'] {
 	background: var( --ace-glass-tint, rgba( 255, 255, 255, 0.1 ) ) !important;
+	@supports ( background: color-mix( in srgb, white 1%, transparent ) ) {
+		background: color-mix(
+			in srgb,
+			var( --ace-glass-tint-color, white ) var( --ace-glass-tint-amount, var( --ace-glass-tint, 10% ) ),
+			transparent
+		) !important;
+	}
 	backdrop-filter:
 		blur( var( --ace-glass-blur, 18px ) )
 		saturate( var( --ace-glass-saturate, 160% ) )

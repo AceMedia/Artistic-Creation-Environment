@@ -48,14 +48,47 @@
 		} );
 	}
 
+	// Reads tint data attributes from an element and applies them as CSS vars.
+	// data-ace-glass-tint        — colour value (hex / rgb / var(--wp--...))
+	// data-ace-glass-tint-opacity — 0-100 integer; becomes the CSS percentage
+	// If the tint vars are already baked in (via editor inline styles), this is
+	// a no-op because the CSS rule will already have the correct values.
+	function applyTintFromDataAttrs( el ) {
+		var tint    = el.dataset.aceGlassTint;
+		var opacity = el.dataset.aceGlassTintOpacity;
+		if ( tint ) {
+			el.style.setProperty( '--ace-glass-tint-color', tint );
+		}
+		if ( opacity != null ) {
+			el.style.setProperty( '--ace-glass-tint-amount', opacity + '%' );
+		}
+	}
+
 	// Inject the glass CSS rules once. CSS vars are set inline on each block
 	// wrapper; these rules consume them with reasonable fallbacks.
+	// color-mix() block is wrapped in @supports so older browsers get the
+	// plain --ace-glass-tint fallback without breaking.
 	function injectGlassCSS() {
 		if ( document.getElementById( 'ace-glass-styles' ) ) { return; }
+		var colorMixSupport = CSS && typeof CSS.supports === 'function'
+			? CSS.supports( 'background', 'color-mix(in srgb, white 1%, transparent)' )
+			: false;
+
+		// Shared backdrop-filter shorthand — avoids repeating the long chain.
+		var btnBg     = colorMixSupport
+			? 'color-mix(in srgb, var(--ace-glass-tint-color, white) var(--ace-glass-tint-amount, 12%), transparent)'
+			: 'var(--ace-glass-tint, rgba(255,255,255,0.12))';
+		var creativeBg = colorMixSupport
+			? 'color-mix(in srgb, var(--ace-glass-tint-color, white) var(--ace-glass-tint-amount, 8%), transparent)'
+			: 'var(--ace-glass-tint, rgba(255,255,255,0.08))';
+		var stickyBg  = colorMixSupport
+			? 'color-mix(in srgb, var(--ace-glass-tint-color, white) var(--ace-glass-tint-amount, 10%), transparent)'
+			: 'var(--ace-glass-tint, rgba(255,255,255,0.1))';
+
 		var css =
 			// ── Glass buttons ────────────────────────────────────────────────
 			'.ace-artistic-btn--liquid-glass .wp-block-button__link {' +
-			'  background: var(--ace-glass-tint, rgba(255,255,255,0.12)) !important;' +
+			'  background: ' + btnBg + ' !important;' +
 			'  backdrop-filter:' +
 			'    blur(var(--ace-glass-blur, 16px))' +
 			'    saturate(var(--ace-glass-saturate, 180%))' +
@@ -73,7 +106,7 @@
 			// ── Creative block glass overlay ─────────────────────────────────
 			'.wp-block-artistic-creation-environment-creative[data-ace-liquid-glass="true"]' +
 			'  .artistic-creative__inner-container {' +
-			'  background: var(--ace-glass-tint, rgba(255,255,255,0.08)) !important;' +
+			'  background: ' + creativeBg + ' !important;' +
 			'  backdrop-filter:' +
 			'    blur(var(--ace-glass-blur, 20px))' +
 			'    saturate(var(--ace-glass-saturate, 150%))' +
@@ -88,7 +121,7 @@
 			'}' +
 			// ── Sticky glass blocks ───────────────────────────────────────────
 			'[data-ace-sticky-glass="true"] {' +
-			'  background: var(--ace-glass-tint, rgba(255,255,255,0.1)) !important;' +
+			'  background: ' + stickyBg + ' !important;' +
 			'  backdrop-filter:' +
 			'    blur(var(--ace-glass-blur, 18px))' +
 			'    saturate(var(--ace-glass-saturate, 160%))' +
@@ -159,6 +192,9 @@
 			if ( ! wrapper.style.getPropertyValue( '--ace-glass-blur' ) ) {
 				setCSSVarsFromPreset( wrapper, wrapper.dataset.aceLgPreset || 'default' );
 			}
+			// Apply tint from data attributes — editor bakes these in for new saves;
+			// this covers any older blocks that predate the tint feature.
+			applyTintFromDataAttrs( wrapper );
 			link.style.position = link.style.position || 'relative';
 			link.style.zIndex   = link.style.zIndex   || '1';
 			// Tilt on hover — reads data-ace-lg-tilt from the wrapper (set by the editor).
@@ -180,6 +216,7 @@
 			if ( ! block.style.getPropertyValue( '--ace-glass-blur' ) ) {
 				setCSSVarsFromPreset( block, block.dataset.aceLgPreset || 'default' );
 			}
+			applyTintFromDataAttrs( block );
 			// Remove isolation:isolate so backdrop-filter composites against the
 			// full page — including animated backgrounds outside the block.
 			block.style.isolation = 'auto';
@@ -194,6 +231,7 @@
 			if ( ! el.style.getPropertyValue( '--ace-glass-blur' ) ) {
 				setCSSVarsFromPreset( el, el.dataset.aceLgPreset || 'default' );
 			}
+			applyTintFromDataAttrs( el );
 			el.style.isolation = 'auto';
 			// Tilt on hover — opt-in via data-ace-lg-tilt attribute.
 			if ( el.dataset.aceLgTilt === 'true' ) {
@@ -215,4 +253,3 @@
 		init();
 	}
 } )();
-
