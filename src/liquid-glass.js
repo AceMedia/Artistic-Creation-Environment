@@ -51,44 +51,78 @@
 	// Reads tint data attributes from an element and applies them as CSS vars.
 	// data-ace-glass-tint        — colour value (hex / rgb / var(--wp--...))
 	// data-ace-glass-tint-opacity — 0-100 integer; becomes the CSS percentage
-	// If the tint vars are already baked in (via editor inline styles), this is
-	// a no-op because the CSS rule will already have the correct values.
+	//
+	// Strategy: compute the actual rgba() value via a temporary DOM element so
+	// that any CSS color (including theme palette CSS vars) resolves correctly.
+	// We then override --ace-glass-tint to that rgba, which is used universally
+	// by the glass CSS rules.  No color-mix() support required.
 	function applyTintFromDataAttrs( el ) {
 		var tint    = el.dataset.aceGlassTint;
-		var opacity = el.dataset.aceGlassTintOpacity;
-		if ( tint ) {
-			el.style.setProperty( '--ace-glass-tint-color', tint );
+		var opacity = parseInt( el.dataset.aceGlassTintOpacity, 10 );
+		if ( isNaN( opacity ) ) { opacity = 15; }
+
+		if ( ! tint ) { return; }
+
+		// Set the vars used by the @supports color-mix() path in the CSS.
+		el.style.setProperty( '--ace-glass-tint-color',  tint );
+		el.style.setProperty( '--ace-glass-tint-amount', opacity + '%' );
+
+		// Also compute and set --ace-glass-tint as a plain rgba() so the
+		// background rule works on every browser without color-mix() support.
+		var alpha = ( opacity / 100 ).toFixed( 2 );
+		var rgba  = resolveColorToRGBA( tint, alpha );
+		if ( rgba ) {
+			el.style.setProperty( '--ace-glass-tint', rgba );
 		}
-		if ( opacity != null ) {
-			el.style.setProperty( '--ace-glass-tint-amount', opacity + '%' );
-		}
+	}
+
+	// Resolves any CSS colour value (hex, rgb, named, or CSS custom property
+	// reference) to an rgba() string by briefly appending a hidden element to
+	// the live document so that CSS variables resolve in the correct context.
+	function resolveColorToRGBA( color, alpha ) {
+		try {
+			var tmp = document.createElement( 'div' );
+			tmp.style.cssText = 'position:absolute;opacity:0;pointer-events:none;width:0;height:0;';
+			document.body.appendChild( tmp );
+			tmp.style.setProperty( 'background-color', color );
+			var bg = window.getComputedStyle( tmp ).backgroundColor;
+			document.body.removeChild( tmp );
+			// getComputedStyle returns rgb(...) or rgba(...)
+			var m = bg.match( /[\d.]+/g );
+			if ( m && m.length >= 3 ) {
+				return 'rgba(' + m[0] + ',' + m[1] + ',' + m[2] + ',' + alpha + ')';
+			}
+		} catch ( e ) { /* silent */ }
+		return null;
 	}
 
 	// Inject the glass CSS rules once. CSS vars are set inline on each block
 	// wrapper; these rules consume them with reasonable fallbacks.
-	// color-mix() block is wrapped in @supports so older browsers get the
-	// plain --ace-glass-tint fallback without breaking.
+	// --ace-glass-tint is overridden by applyTintFromDataAttrs() to a computed
+	// rgba() value, so tinted glass works on every browser without color-mix().
+	// The @supports color-mix() block is a progressive enhancement for browsers
+	// that support it — it uses --ace-glass-tint-color which can hold CSS custom
+	// property references (e.g. theme palette vars) without JS colour-parsing.
 	function injectGlassCSS() {
 		if ( document.getElementById( 'ace-glass-styles' ) ) { return; }
-		var colorMixSupport = CSS && typeof CSS.supports === 'function'
-			? CSS.supports( 'background', 'color-mix(in srgb, white 1%, transparent)' )
-			: false;
-
-		// Shared backdrop-filter shorthand — avoids repeating the long chain.
-		var btnBg     = colorMixSupport
-			? 'color-mix(in srgb, var(--ace-glass-tint-color, white) var(--ace-glass-tint-amount, 12%), transparent)'
-			: 'var(--ace-glass-tint, rgba(255,255,255,0.12))';
-		var creativeBg = colorMixSupport
-			? 'color-mix(in srgb, var(--ace-glass-tint-color, white) var(--ace-glass-tint-amount, 8%), transparent)'
-			: 'var(--ace-glass-tint, rgba(255,255,255,0.08))';
-		var stickyBg  = colorMixSupport
-			? 'color-mix(in srgb, var(--ace-glass-tint-color, white) var(--ace-glass-tint-amount, 10%), transparent)'
-			: 'var(--ace-glass-tint, rgba(255,255,255,0.1))';
+		var colorMixBlock = ( CSS && typeof CSS.supports === 'function' &&
+			CSS.supports( 'background', 'color-mix(in srgb, white 1%, transparent)' ) )
+			? (
+				// Buttons
+				'@supports(background:color-mix(in srgb,white 1%,transparent)){' +
+				'.ace-artistic-btn--liquid-glass .wp-block-button__link{' +
+				'background:color-mix(in srgb,var(--ace-glass-tint-color,white) var(--ace-glass-tint-amount,12%),transparent)!important}' +
+				'.wp-block-artistic-creation-environment-creative[data-ace-liquid-glass="true"] .artistic-creative__inner-container{' +
+				'background:color-mix(in srgb,var(--ace-glass-tint-color,white) var(--ace-glass-tint-amount,8%),transparent)!important}' +
+				'[data-ace-sticky-glass="true"]{' +
+				'background:color-mix(in srgb,var(--ace-glass-tint-color,white) var(--ace-glass-tint-amount,10%),transparent)!important}' +
+				'}'
+			) : '';
 
 		var css =
 			// ── Glass buttons ────────────────────────────────────────────────
 			'.ace-artistic-btn--liquid-glass .wp-block-button__link {' +
-			'  background: ' + btnBg + ' !important;' +
+			'  background: var(--ace-glass-tint, rgba(255,255,255,0.12)) !important;' +
 			'  backdrop-filter:' +
 			'    blur(var(--ace-glass-blur, 16px))' +
 			'    saturate(var(--ace-glass-saturate, 180%))' +
@@ -106,7 +140,7 @@
 			// ── Creative block glass overlay ─────────────────────────────────
 			'.wp-block-artistic-creation-environment-creative[data-ace-liquid-glass="true"]' +
 			'  .artistic-creative__inner-container {' +
-			'  background: ' + creativeBg + ' !important;' +
+			'  background: var(--ace-glass-tint, rgba(255,255,255,0.08)) !important;' +
 			'  backdrop-filter:' +
 			'    blur(var(--ace-glass-blur, 20px))' +
 			'    saturate(var(--ace-glass-saturate, 150%))' +
@@ -121,7 +155,7 @@
 			'}' +
 			// ── Sticky glass blocks ───────────────────────────────────────────
 			'[data-ace-sticky-glass="true"] {' +
-			'  background: ' + stickyBg + ' !important;' +
+			'  background: var(--ace-glass-tint, rgba(255,255,255,0.1)) !important;' +
 			'  backdrop-filter:' +
 			'    blur(var(--ace-glass-blur, 18px))' +
 			'    saturate(var(--ace-glass-saturate, 160%))' +
@@ -149,7 +183,9 @@
 			'    drop-shadow(0 0 14px rgba(150,200,255,0.35));' +
 			'  display: inline;' +
 			'  -webkit-box-decoration-break: clone; box-decoration-break: clone;' +
-			'}';
+			'}' +
+			// Progressive enhancement: color-mix() for theme CSS var colours
+			colorMixBlock;
 		var s    = document.createElement( 'style' );
 		s.id     = 'ace-glass-styles';
 		s.textContent = css;

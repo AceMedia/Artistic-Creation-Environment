@@ -674,14 +674,15 @@ background-position: 170% center, 100% center;
 
 // Glass buttons in the editor.
 .wp-block-button.ace-artistic-btn--liquid-glass .wp-block-button__link {
-	// Fallback for browsers without color-mix() support.
+	// Fallback for browsers without color-mix() support — uses the white tint from the preset.
 	background: var( --ace-glass-tint, rgba( 255, 255, 255, 0.12 ) ) !important;
-	// Modern: tinted glass using the --ace-glass-tint-color + --ace-glass-tint-amount vars
-	// set by the editor when a tint colour is chosen or a WP background colour is detected.
+	// Modern: tinted glass — --ace-glass-tint-color / --ace-glass-tint-amount are set inline
+	// when a tint colour is chosen. A plain % fallback is essential; the old rgba var is NOT
+	// a valid percentage and would make the whole color-mix() expression invalid.
 	@supports ( background: color-mix( in srgb, white 1%, transparent ) ) {
 		background: color-mix(
 			in srgb,
-			var( --ace-glass-tint-color, white ) var( --ace-glass-tint-amount, var( --ace-glass-tint, 12% ) ),
+			var( --ace-glass-tint-color, white ) var( --ace-glass-tint-amount, 12% ),
 			transparent
 		) !important;
 	}
@@ -706,7 +707,7 @@ background-position: 170% center, 100% center;
 	@supports ( background: color-mix( in srgb, white 1%, transparent ) ) {
 		background: color-mix(
 			in srgb,
-			var( --ace-glass-tint-color, white ) var( --ace-glass-tint-amount, var( --ace-glass-tint, 8% ) ),
+			var( --ace-glass-tint-color, white ) var( --ace-glass-tint-amount, 8% ),
 			transparent
 		) !important;
 	}
@@ -728,7 +729,7 @@ background-position: 170% center, 100% center;
 	@supports ( background: color-mix( in srgb, white 1%, transparent ) ) {
 		background: color-mix(
 			in srgb,
-			var( --ace-glass-tint-color, white ) var( --ace-glass-tint-amount, var( --ace-glass-tint, 10% ) ),
+			var( --ace-glass-tint-color, white ) var( --ace-glass-tint-amount, 10% ),
 			transparent
 		) !important;
 	}
