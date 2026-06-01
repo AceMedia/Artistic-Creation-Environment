@@ -889,6 +889,28 @@ function getGlassCSSVarsFromPreset( presetName, tintOpts ) {
 	return glassValsToCSSVars( p.frost, p.refraction, p.bevelDepth, p.shadow, p.specular, tintSrc, tintAmt );
 }
 
+// Merges per-control manual overrides into the preset CSS vars for group blocks.
+// Any attribute left at its default (null) leaves the preset value unchanged.
+function applyGroupGlassOverrides( vars, attrs ) {
+	const v = { ...vars };
+	if ( attrs.aceStickyGlassBlur        != null ) v[ '--ace-glass-blur'       ] = `${ attrs.aceStickyGlassBlur }px`;
+	if ( attrs.aceStickyGlassSaturate    != null ) v[ '--ace-glass-saturate'   ] = `${ attrs.aceStickyGlassSaturate }%`;
+	if ( attrs.aceStickyGlassBrightness  != null ) v[ '--ace-glass-brightness' ] = `${ attrs.aceStickyGlassBrightness }`;
+	if ( attrs.aceStickyGlassEdgeOpacity != null ) {
+		v[ '--ace-glass-border' ] = `rgba(255,255,255,${ ( attrs.aceStickyGlassEdgeOpacity / 100 ).toFixed( 2 ) })`;
+	}
+	// Shadow and edge shine are co-dependent; if either is customised we rebuild
+	// the full box-shadow string so both values are honoured simultaneously.
+	if ( attrs.aceStickyGlassShadow != null || attrs.aceStickyGlassEdgeShine != null ) {
+		const useShadow = attrs.aceStickyGlassShadow  ?? true;
+		const useShine  = attrs.aceStickyGlassEdgeShine ?? false;
+		v[ '--ace-glass-shadow' ] = useShadow
+			? `0 6px 28px rgba(0,0,0,0.14)${ useShine ? ', inset 0 1px 0 rgba(255,255,255,0.5)' : '' }`
+			: 'none';
+	}
+	return v;
+}
+
 // Reads the WP native background colour from block attributes.
 // Returns the value exactly as WP stores it — could be a hex string or
 // a CSS variable reference like "var(--wp--preset--color--primary)" — so it
@@ -2717,7 +2739,7 @@ const CreativeBlockEdit = ( props = {} ) => {
 							label={ __( 'Tint strength', 'artistic-creation-environment' ) }
 							value={ attributes.aceCreativeLiquidGlassTintOpacity != null ? attributes.aceCreativeLiquidGlassTintOpacity : 15 }
 							min={ 0 }
-							max={ 80 }
+							max={ 90 }
 							step={ 5 }
 							onChange={ ( v ) => setAttributes( { aceCreativeLiquidGlassTintOpacity: v } ) }
 						/>
@@ -3230,7 +3252,7 @@ const CreativeChildContentEffectsControls = ( props = {} ) => {
 						label={ __( 'Tint strength', 'artistic-creation-environment' ) }
 						value={ creativeAttributes.aceCreativeLiquidGlassTintOpacity != null ? creativeAttributes.aceCreativeLiquidGlassTintOpacity : 15 }
 						min={ 0 }
-						max={ 80 }
+						max={ 90 }
 						step={ 5 }
 						onChange={ ( v ) => setCreativeAttributes( { aceCreativeLiquidGlassTintOpacity: v } ) }
 					/>
@@ -4349,7 +4371,7 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 							label={ __( 'Tint strength', 'artistic-creation-environment' ) }
 							value={ aceLiquidGlassTintColor ? ( aceLiquidGlassTintOpacity != null ? aceLiquidGlassTintOpacity : 15 ) : 0 }
 							min={ 0 }
-							max={ 80 }
+							max={ 90 }
 							step={ 5 }
 							disabled={ ! aceLiquidGlassTintColor && ! getWPBlockBgColor( attributes ) }
 							onChange={ ( v ) => setAttributes( { aceLiquidGlassTintOpacity: v } ) }
@@ -4503,12 +4525,19 @@ return {
 ...settings,
 attributes: {
 ...( settings.attributes || {} ),
-aceStickyGlass:            { type: 'boolean', default: false },
-aceStickyGlassPreset:      { type: 'string',  default: 'default' },
-aceStickyGlassTilt:        { type: 'boolean', default: false },
-aceStickyGlassTiltFactor:  { type: 'number',  default: 5 },
-aceStickyGlassTintColor:   { type: 'string',  default: '' },
-aceStickyGlassTintOpacity: { type: 'number',  default: 15 },
+aceStickyGlass:             { type: 'boolean', default: false },
+aceStickyGlassPreset:       { type: 'string',  default: 'default' },
+aceStickyGlassTilt:         { type: 'boolean', default: false },
+aceStickyGlassTiltFactor:   { type: 'number',  default: 5 },
+aceStickyGlassTintColor:    { type: 'string',  default: '' },
+aceStickyGlassTintOpacity:  { type: 'number',  default: 15 },
+// Per-control overrides — null means "inherit from preset".
+aceStickyGlassBlur:         { type: 'number',  default: null },
+aceStickyGlassSaturate:     { type: 'number',  default: null },
+aceStickyGlassBrightness:   { type: 'number',  default: null },
+aceStickyGlassEdgeOpacity:  { type: 'number',  default: null },
+aceStickyGlassEdgeShine:    { type: 'boolean', default: null },
+aceStickyGlassShadow:       { type: 'boolean', default: null },
 },
 };
 }
@@ -4525,14 +4554,17 @@ const withGlassGroupWrapper = createHigherOrderComponent(
 			if ( ( ! isGroup && ! isSticky ) || ! attributes.aceStickyGlass ) {
 				return <BlockListBlock { ...props } />;
 			}
-			const glassVars = getGlassCSSVarsFromPreset(
+			const glassVars = applyGroupGlassOverrides(
+			getGlassCSSVarsFromPreset(
 				attributes.aceStickyGlassPreset || 'default',
 				{
 					color : attributes.aceStickyGlassTintColor || null,
 					wpBg  : getWPBlockBgColor( attributes ),
 					amount: attributes.aceStickyGlassTintOpacity != null ? attributes.aceStickyGlassTintOpacity : null,
 				}
-			);
+			),
+			attributes
+		);
 			const tintSrc = attributes.aceStickyGlassTintColor || getWPBlockBgColor( attributes ) || null;
 			const wrapperProps = {
 				...( props.wrapperProps || {} ),
@@ -4595,6 +4627,66 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 									options={ LIQUID_GLASS_PRESET_OPTIONS }
 									onChange={ ( v ) => setAttributes( { aceStickyGlassPreset: v } ) }
 								/>
+
+								<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
+									{ __( 'Backdrop', 'artistic-creation-environment' ) }
+								</p>
+								<RangeControl
+									label={ __( 'Blur', 'artistic-creation-environment' ) }
+									value={ attributes.aceStickyGlassBlur ?? Math.round( ( GLASS_PRESET_VALUES[ attributes.aceStickyGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).frost * 8 ) }
+									min={ 0 }
+									max={ 40 }
+									step={ 1 }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassBlur: v } ) }
+								/>
+								<RangeControl
+									label={ __( 'Saturation', 'artistic-creation-environment' ) }
+									value={ attributes.aceStickyGlassSaturate ?? Math.round( 150 + ( GLASS_PRESET_VALUES[ attributes.aceStickyGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).refraction * 600 ) }
+									min={ 100 }
+									max={ 300 }
+									step={ 5 }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassSaturate: v } ) }
+								/>
+								<RangeControl
+									label={ __( 'Brightness', 'artistic-creation-environment' ) }
+									value={ attributes.aceStickyGlassBrightness ?? ( ( GLASS_PRESET_VALUES[ attributes.aceStickyGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).specular ? 1.2 : 1.08 ) }
+									min={ 0.8 }
+									max={ 1.5 }
+									step={ 0.02 }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassBrightness: v } ) }
+								/>
+
+								<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
+									{ __( 'Edge & Bezel', 'artistic-creation-environment' ) }
+								</p>
+								<RangeControl
+									label={ __( 'Edge opacity', 'artistic-creation-environment' ) }
+									help={ __( 'Opacity of the bright edge highlight (border).', 'artistic-creation-environment' ) }
+									value={ attributes.aceStickyGlassEdgeOpacity ?? Math.round( ( 0.18 + ( GLASS_PRESET_VALUES[ attributes.aceStickyGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).bevelDepth ) * 100 ) }
+									min={ 0 }
+									max={ 100 }
+									step={ 1 }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassEdgeOpacity: v } ) }
+								/>
+								<ToggleControl
+									label={ __( 'Edge shine (inner glow)', 'artistic-creation-environment' ) }
+									help={ __( 'Adds a specular highlight on the top inner edge — classic glass bezel look.', 'artistic-creation-environment' ) }
+									checked={ attributes.aceStickyGlassEdgeShine ?? ( GLASS_PRESET_VALUES[ attributes.aceStickyGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).specular }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassEdgeShine: v } ) }
+								/>
+
+								<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
+									{ __( 'Shadow', 'artistic-creation-environment' ) }
+								</p>
+								<ToggleControl
+									label={ __( 'Drop shadow', 'artistic-creation-environment' ) }
+									checked={ attributes.aceStickyGlassShadow ?? ( GLASS_PRESET_VALUES[ attributes.aceStickyGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).shadow }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassShadow: v } ) }
+								/>
+
+								<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
+									{ __( 'Tilt', 'artistic-creation-environment' ) }
+								</p>
 								<ToggleControl
 									label={ __( 'Tilt on hover', 'artistic-creation-environment' ) }
 									checked={ !! attributes.aceStickyGlassTilt }
@@ -4610,8 +4702,9 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 										onChange={ ( v ) => setAttributes( { aceStickyGlassTiltFactor: v } ) }
 									/>
 								) }
-								<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 8 } }>
-									{ __( 'Tint colour', 'artistic-creation-environment' ) }
+
+								<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
+									{ __( 'Tint', 'artistic-creation-environment' ) }
 								</p>
 								<p style={ { fontSize: 11, color: '#757575', marginTop: 0, marginBottom: 8 } }>
 									{ __( "Tints the glass. If you've set a background colour on this block it'll be picked up automatically — or choose a custom tint below.", 'artistic-creation-environment' ) }
@@ -4625,7 +4718,7 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 									label={ __( 'Tint strength', 'artistic-creation-environment' ) }
 									value={ attributes.aceStickyGlassTintOpacity != null ? attributes.aceStickyGlassTintOpacity : 15 }
 									min={ 0 }
-									max={ 80 }
+									max={ 90 }
 									step={ 5 }
 									onChange={ ( v ) => setAttributes( { aceStickyGlassTintOpacity: v } ) }
 								/>
@@ -4659,11 +4752,14 @@ const result = {
 'data-ace-lg-tilt': attributes.aceStickyGlassTilt ? 'true' : 'false',
 style: {
 	...( extraProps.style || {} ),
-	...getGlassCSSVarsFromPreset( attributes.aceStickyGlassPreset || 'default', {
-		color : attributes.aceStickyGlassTintColor || null,
-		wpBg  : getWPBlockBgColor( attributes ),
-		amount: attributes.aceStickyGlassTintOpacity != null ? attributes.aceStickyGlassTintOpacity : null,
-	} ),
+	...applyGroupGlassOverrides(
+		getGlassCSSVarsFromPreset( attributes.aceStickyGlassPreset || 'default', {
+			color : attributes.aceStickyGlassTintColor || null,
+			wpBg  : getWPBlockBgColor( attributes ),
+			amount: attributes.aceStickyGlassTintOpacity != null ? attributes.aceStickyGlassTintOpacity : null,
+		} ),
+		attributes
+	),
 },
 };
 if ( attributes.aceStickyGlassTilt && attributes.aceStickyGlassTiltFactor != null ) {
