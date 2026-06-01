@@ -625,9 +625,20 @@ const ATTRIBUTE_DEFINITIONS = {
 	aceCreativeDustColor: { type: 'string', default: '#b8a8f8' },
 	aceCreativeDustPointerMode: { type: 'string', default: 'attract' },
 	// Liquid Glass content overlay preset for Creative blocks.
-	aceCreativeLiquidGlassPreset:      { type: 'string', default: 'default' },
-	aceCreativeLiquidGlassTintColor:   { type: 'string', default: '' },
-	aceCreativeLiquidGlassTintOpacity: { type: 'number', default: 15 },
+	aceCreativeLiquidGlassPreset:      { type: 'string',  default: 'default' },
+	aceCreativeLiquidGlassTintColor:   { type: 'string',  default: '' },
+	aceCreativeLiquidGlassTintOpacity: { type: 'number',  default: 15 },
+	aceCreativeLiquidGlassRefraction:  { type: 'number',  default: null },
+	aceCreativeLiquidGlassBevelDepth:  { type: 'number',  default: null },
+	aceCreativeLiquidGlassBevelWidth:  { type: 'number',  default: null },
+	aceCreativeLiquidGlassFrost:       { type: 'number',  default: null },
+	aceCreativeLiquidGlassShadow:      { type: 'boolean', default: null },
+	aceCreativeLiquidGlassSpecular:    { type: 'boolean', default: null },
+	aceCreativeLiquidGlassTilt:        { type: 'boolean', default: false },
+	aceCreativeLiquidGlassTiltFactor:  { type: 'number',  default: 5 },
+	aceCreativeLiquidGlassMagnify:     { type: 'number',  default: null },
+	aceCreativeLiquidGlassReveal:      { type: 'string',  default: 'none' },
+	aceCreativeLiquidGlassResolution:  { type: 'number',  default: 2.0 },
 };
 
 const resolveValue = ( attributes, key ) =>
@@ -834,13 +845,13 @@ const getChildInteractivityStyle = ( attributes = {} ) => {
 // for both the live editor preview (via inline CSS vars) and the saved HTML
 // (CSS vars baked into the block style attribute on save).
 const GLASS_PRESET_VALUES = {
-	default: { refraction: 0,     bevelDepth: 0.052, frost: 2,   shadow: true,  specular: true  },
-	alien:   { refraction: 0.073, bevelDepth: 0.2,   frost: 2,   shadow: true,  specular: false },
-	pulse:   { refraction: 0.03,  bevelDepth: 0,     frost: 0,   shadow: false, specular: false },
-	frost:   { refraction: 0,     bevelDepth: 0.035, frost: 0.9, shadow: true,  specular: true  },
-	edge:    { refraction: 0.047, bevelDepth: 0.136, frost: 2,   shadow: true,  specular: false },
+	default: { refraction: 0,     bevelDepth: 0.052, bevelWidth: 0.211, frost: 2,   shadow: true,  specular: true  },
+	alien:   { refraction: 0.073, bevelDepth: 0.2,   bevelWidth: 0.156, frost: 2,   shadow: true,  specular: false },
+	pulse:   { refraction: 0.03,  bevelDepth: 0,     bevelWidth: 0.273, frost: 0,   shadow: false, specular: false },
+	frost:   { refraction: 0,     bevelDepth: 0.035, bevelWidth: 0.119, frost: 0.9, shadow: true,  specular: true  },
+	edge:    { refraction: 0.047, bevelDepth: 0.136, bevelWidth: 0.076, frost: 2,   shadow: true,  specular: false },
 	// Custom: same baseline as default — sliders drive everything.
-	custom:  { refraction: 0,     bevelDepth: 0.052, frost: 2,   shadow: true,  specular: true  },
+	custom:  { refraction: 0,     bevelDepth: 0.052, bevelWidth: 0.211, frost: 2,   shadow: true,  specular: true  },
 };
 
 // Converts raw liquidGL-equivalent values to CSS custom property strings.
@@ -889,6 +900,21 @@ function getGlassCSSVarsFromPreset( presetName, tintOpts ) {
 	const tintSrc = tintOpts?.color || tintOpts?.wpBg || null;
 	const tintAmt = tintOpts?.amount != null ? tintOpts.amount : null;
 	return glassValsToCSSVars( p.frost, p.refraction, p.bevelDepth, p.shadow, p.specular, tintSrc, tintAmt );
+}
+
+function getCreativeGlassCSSVarsFromAttrs( attributes = {} ) {
+	const preset = GLASS_PRESET_VALUES[ attributes.aceCreativeLiquidGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default;
+	const tintSrc = attributes.aceCreativeLiquidGlassTintColor || getWPBlockBgColor( attributes ) || null;
+	const tintAmt = attributes.aceCreativeLiquidGlassTintOpacity != null ? attributes.aceCreativeLiquidGlassTintOpacity : null;
+	return glassValsToCSSVars(
+		attributes.aceCreativeLiquidGlassFrost ?? preset.frost,
+		attributes.aceCreativeLiquidGlassRefraction ?? preset.refraction,
+		attributes.aceCreativeLiquidGlassBevelDepth ?? preset.bevelDepth,
+		attributes.aceCreativeLiquidGlassShadow ?? preset.shadow,
+		attributes.aceCreativeLiquidGlassSpecular ?? preset.specular,
+		tintSrc,
+		tintAmt
+	);
 }
 
 // Merges per-control manual overrides into the preset CSS vars for group blocks.
@@ -962,11 +988,7 @@ const getEditorBlockStyle = ( attributes = {} ) => {
 		...contentStyle,
 		...childInteractivityStyle,
 		...verticalAlignStyle,
-		...( isGlass ? getGlassCSSVarsFromPreset( attributes.aceCreativeLiquidGlassPreset || 'default', {
-			color : attributes.aceCreativeLiquidGlassTintColor || null,
-			wpBg  : getWPBlockBgColor( attributes ),
-			amount: attributes.aceCreativeLiquidGlassTintOpacity != null ? attributes.aceCreativeLiquidGlassTintOpacity : null,
-		} ) : {} ),
+		...( isGlass ? getCreativeGlassCSSVarsFromAttrs( attributes ) : {} ),
 	};
 
 	if ( attributes?.style?.dimensions?.minHeight ) {
@@ -985,11 +1007,7 @@ const getSavedBlockStyle = ( attributes = {} ) => {
 		...( getContentEffectStyle( attributes ) || {} ),
 		...( getChildInteractivityStyle( attributes ) || {} ),
 		...( getVerticalAlignStyle( attributes ) || {} ),
-		...( isGlass ? getGlassCSSVarsFromPreset( attributes.aceCreativeLiquidGlassPreset || 'default', {
-			color : attributes.aceCreativeLiquidGlassTintColor || null,
-			wpBg  : getWPBlockBgColor( attributes ),
-			amount: attributes.aceCreativeLiquidGlassTintOpacity != null ? attributes.aceCreativeLiquidGlassTintOpacity : null,
-		} ) : {} ),
+		...( isGlass ? getCreativeGlassCSSVarsFromAttrs( attributes ) : {} ),
 	};
 
 	return Object.keys( blockStyle ).length ? blockStyle : undefined;
@@ -2734,10 +2752,123 @@ const CreativeBlockEdit = ( props = {} ) => {
 							help={ __( 'Real-time WebGL glass physics. Falls back to CSS blur on non-WebGL devices.', 'artistic-creation-environment' ) }
 							value={ attributes.aceCreativeLiquidGlassPreset || 'default' }
 							options={ LIQUID_GLASS_PRESET_OPTIONS }
-							onChange={ ( v ) => setAttributes( { aceCreativeLiquidGlassPreset: v } ) }
+							onChange={ ( v ) => {
+								if ( v !== 'custom' ) {
+									setAttributes( {
+										aceCreativeLiquidGlassPreset:     v,
+										aceCreativeLiquidGlassRefraction: null,
+										aceCreativeLiquidGlassBevelDepth: null,
+										aceCreativeLiquidGlassBevelWidth: null,
+										aceCreativeLiquidGlassFrost:      null,
+										aceCreativeLiquidGlassShadow:     null,
+										aceCreativeLiquidGlassSpecular:   null,
+									} );
+								} else {
+									setAttributes( { aceCreativeLiquidGlassPreset: v } );
+								}
+							} }
 						/>
-						<p style={ { fontWeight: 600, marginBottom: 4 } }>
-							{ __( 'Tint colour', 'artistic-creation-environment' ) }
+						<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
+							{ __( 'Refraction & Lens', 'artistic-creation-environment' ) }
+						</p>
+						<RangeControl
+							label={ __( 'Refraction', 'artistic-creation-environment' ) }
+							help={ __( 'Edge refraction distortion. 0 = pure lens.', 'artistic-creation-environment' ) }
+							value={ attributes.aceCreativeLiquidGlassRefraction ?? ( GLASS_PRESET_VALUES[ attributes.aceCreativeLiquidGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).refraction }
+							min={ 0 }
+							max={ 0.15 }
+							step={ 0.005 }
+							onChange={ ( v ) => setAttributes( { aceCreativeLiquidGlassRefraction: v, aceCreativeLiquidGlassPreset: 'custom' } ) }
+						/>
+						<RangeControl
+							label={ __( 'Bevel depth', 'artistic-creation-environment' ) }
+							help={ __( 'Intensity of the edge bevel refraction.', 'artistic-creation-environment' ) }
+							value={ attributes.aceCreativeLiquidGlassBevelDepth ?? ( GLASS_PRESET_VALUES[ attributes.aceCreativeLiquidGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).bevelDepth }
+							min={ 0 }
+							max={ 0.3 }
+							step={ 0.005 }
+							onChange={ ( v ) => setAttributes( { aceCreativeLiquidGlassBevelDepth: v, aceCreativeLiquidGlassPreset: 'custom' } ) }
+						/>
+						<RangeControl
+							label={ __( 'Bevel width', 'artistic-creation-environment' ) }
+							help={ __( 'Width of the edge bevel zone.', 'artistic-creation-environment' ) }
+							value={ attributes.aceCreativeLiquidGlassBevelWidth ?? ( GLASS_PRESET_VALUES[ attributes.aceCreativeLiquidGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).bevelWidth }
+							min={ 0 }
+							max={ 0.5 }
+							step={ 0.005 }
+							onChange={ ( v ) => setAttributes( { aceCreativeLiquidGlassBevelWidth: v, aceCreativeLiquidGlassPreset: 'custom' } ) }
+						/>
+						<RangeControl
+							label={ __( 'Frost', 'artistic-creation-environment' ) }
+							help={ __( 'Frosted glass blur. 0 = crystal clear, 10 = heavy frost.', 'artistic-creation-environment' ) }
+							value={ attributes.aceCreativeLiquidGlassFrost ?? ( GLASS_PRESET_VALUES[ attributes.aceCreativeLiquidGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).frost }
+							min={ 0 }
+							max={ 10 }
+							step={ 0.1 }
+							onChange={ ( v ) => setAttributes( { aceCreativeLiquidGlassFrost: v, aceCreativeLiquidGlassPreset: 'custom' } ) }
+						/>
+						<RangeControl
+							label={ __( 'Magnify', 'artistic-creation-environment' ) }
+							help={ __( 'Zooms the background through the glass lens.', 'artistic-creation-environment' ) }
+							value={ attributes.aceCreativeLiquidGlassMagnify ?? 1 }
+							min={ 0.5 }
+							max={ 3 }
+							step={ 0.05 }
+							onChange={ ( v ) => setAttributes( { aceCreativeLiquidGlassMagnify: v, aceCreativeLiquidGlassPreset: 'custom' } ) }
+						/>
+						<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
+							{ __( 'Shadow & Highlights', 'artistic-creation-environment' ) }
+						</p>
+						<ToggleControl
+							label={ __( 'Drop shadow', 'artistic-creation-environment' ) }
+							checked={ attributes.aceCreativeLiquidGlassShadow ?? ( GLASS_PRESET_VALUES[ attributes.aceCreativeLiquidGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).shadow }
+							onChange={ ( v ) => setAttributes( { aceCreativeLiquidGlassShadow: v, aceCreativeLiquidGlassPreset: 'custom' } ) }
+						/>
+						<ToggleControl
+							label={ __( 'Specular highlights', 'artistic-creation-environment' ) }
+							help={ __( 'Animated specular blobs on the glass surface.', 'artistic-creation-environment' ) }
+							checked={ attributes.aceCreativeLiquidGlassSpecular ?? ( GLASS_PRESET_VALUES[ attributes.aceCreativeLiquidGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).specular }
+							onChange={ ( v ) => setAttributes( { aceCreativeLiquidGlassSpecular: v, aceCreativeLiquidGlassPreset: 'custom' } ) }
+						/>
+						<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
+							{ __( 'Tilt', 'artistic-creation-environment' ) }
+						</p>
+						<ToggleControl
+							label={ __( 'Tilt on hover', 'artistic-creation-environment' ) }
+							checked={ !! attributes.aceCreativeLiquidGlassTilt }
+							onChange={ ( v ) => setAttributes( { aceCreativeLiquidGlassTilt: v } ) }
+						/>
+						{ !! attributes.aceCreativeLiquidGlassTilt && (
+							<RangeControl
+								label={ __( 'Tilt factor', 'artistic-creation-environment' ) }
+								value={ attributes.aceCreativeLiquidGlassTiltFactor ?? 5 }
+								min={ 1 }
+								max={ 25 }
+								step={ 0.5 }
+								onChange={ ( v ) => setAttributes( { aceCreativeLiquidGlassTiltFactor: v } ) }
+							/>
+						) }
+						<SelectControl
+							label={ __( 'Reveal animation', 'artistic-creation-environment' ) }
+							help={ __( '"None" shows the glass instantly. "Fade" fades it in over 1 second.', 'artistic-creation-environment' ) }
+							value={ attributes.aceCreativeLiquidGlassReveal || 'none' }
+							options={ [
+								{ label: __( 'None (instant)', 'artistic-creation-environment' ), value: 'none' },
+								{ label: __( 'Fade in',        'artistic-creation-environment' ), value: 'fade' },
+							] }
+							onChange={ ( v ) => setAttributes( { aceCreativeLiquidGlassReveal: v } ) }
+							/>
+							<RangeControl
+								label={ __( 'Render quality', 'artistic-creation-environment' ) }
+								help={ __( 'WebGL snapshot resolution (0.5–3.0). Higher = sharper but more GPU. First glass element on page sets this for all.', 'artistic-creation-environment' ) }
+								value={ attributes.aceCreativeLiquidGlassResolution ?? 2.0 }
+								min={ 0.5 }
+								max={ 3.0 }
+								step={ 0.1 }
+								onChange={ ( v ) => setAttributes( { aceCreativeLiquidGlassResolution: v, aceCreativeLiquidGlassPreset: 'custom' } ) }
+							/>
+							<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
+								{ __( 'Tint colour', 'artistic-creation-environment' ) }
 						</p>
 						<p style={ { fontSize: 11, color: '#757575', marginTop: 0, marginBottom: 8 } }>
 							{ __( "Tints the glass — auto-picks the block's background colour, or choose a custom colour.", 'artistic-creation-environment' ) }
@@ -2946,7 +3077,18 @@ const CreativeBlockSave = ( props = {} ) => {
 		style: getSavedBlockStyle( attributes ),
 		...( isLiquidGlass ? {
 			'data-ace-liquid-glass': 'true',
-			'data-ace-lg-preset': attributes.aceCreativeLiquidGlassPreset || 'default',
+			'data-ace-lg-preset':       attributes.aceCreativeLiquidGlassPreset || 'default',
+			...( attributes.aceCreativeLiquidGlassRefraction != null ? { 'data-ace-lg-refraction':  String( attributes.aceCreativeLiquidGlassRefraction ) } : {} ),
+			...( attributes.aceCreativeLiquidGlassBevelDepth != null ? { 'data-ace-lg-bevel-depth': String( attributes.aceCreativeLiquidGlassBevelDepth ) } : {} ),
+			...( attributes.aceCreativeLiquidGlassBevelWidth != null ? { 'data-ace-lg-bevel-width': String( attributes.aceCreativeLiquidGlassBevelWidth ) } : {} ),
+			...( attributes.aceCreativeLiquidGlassFrost      != null ? { 'data-ace-lg-frost':       String( attributes.aceCreativeLiquidGlassFrost ) } : {} ),
+			...( attributes.aceCreativeLiquidGlassShadow     != null ? { 'data-ace-lg-shadow':      attributes.aceCreativeLiquidGlassShadow ? 'true' : 'false' } : {} ),
+			...( attributes.aceCreativeLiquidGlassSpecular   != null ? { 'data-ace-lg-specular':    attributes.aceCreativeLiquidGlassSpecular ? 'true' : 'false' } : {} ),
+			'data-ace-lg-tilt':        attributes.aceCreativeLiquidGlassTilt ? 'true' : 'false',
+			...( attributes.aceCreativeLiquidGlassTilt && attributes.aceCreativeLiquidGlassTiltFactor != null ? { 'data-ace-lg-tilt-factor': String( attributes.aceCreativeLiquidGlassTiltFactor ) } : {} ),
+			...( attributes.aceCreativeLiquidGlassMagnify    != null ? { 'data-ace-lg-magnify':     String( attributes.aceCreativeLiquidGlassMagnify ) } : {} ),
+			'data-ace-lg-reveal':      attributes.aceCreativeLiquidGlassReveal || 'none',
+			'data-ace-lg-resolution':  String( attributes.aceCreativeLiquidGlassResolution ?? 2.0 ),
 		} : {} ),
 	} );
 	const innerBlocksProps = useInnerBlocksProps.save(
@@ -3248,12 +3390,129 @@ const CreativeChildContentEffectsControls = ( props = {} ) => {
 					<>
 					<SelectControl
 						label={ __( 'Glass preset', 'artistic-creation-environment' ) }
+						help={ __( 'Real-time WebGL glass physics. Falls back to CSS blur on non-WebGL devices.', 'artistic-creation-environment' ) }
 						value={ creativeAttributes.aceCreativeLiquidGlassPreset || 'default' }
 						options={ LIQUID_GLASS_PRESET_OPTIONS }
-						onChange={ ( v ) => setCreativeAttributes( { aceCreativeLiquidGlassPreset: v } ) }
+						onChange={ ( v ) => {
+							if ( v !== 'custom' ) {
+								setCreativeAttributes( {
+									aceCreativeLiquidGlassPreset:     v,
+									aceCreativeLiquidGlassRefraction: null,
+									aceCreativeLiquidGlassBevelDepth: null,
+									aceCreativeLiquidGlassBevelWidth: null,
+									aceCreativeLiquidGlassFrost:      null,
+									aceCreativeLiquidGlassShadow:     null,
+									aceCreativeLiquidGlassSpecular:   null,
+								} );
+							} else {
+								setCreativeAttributes( { aceCreativeLiquidGlassPreset: v } );
+							}
+						} }
 					/>
-					<p style={ { fontWeight: 600, marginBottom: 4 } }>
-						{ __( 'Tint colour', 'artistic-creation-environment' ) }
+					<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
+						{ __( 'Refraction & Lens', 'artistic-creation-environment' ) }
+					</p>
+					<RangeControl
+						label={ __( 'Refraction', 'artistic-creation-environment' ) }
+						help={ __( 'Edge refraction distortion. 0 = pure lens.', 'artistic-creation-environment' ) }
+						value={ creativeAttributes.aceCreativeLiquidGlassRefraction ?? ( GLASS_PRESET_VALUES[ creativeAttributes.aceCreativeLiquidGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).refraction }
+						min={ 0 }
+						max={ 0.15 }
+						step={ 0.005 }
+						onChange={ ( v ) => setCreativeAttributes( { aceCreativeLiquidGlassRefraction: v, aceCreativeLiquidGlassPreset: 'custom' } ) }
+					/>
+					<RangeControl
+						label={ __( 'Bevel depth', 'artistic-creation-environment' ) }
+						help={ __( 'Intensity of the edge bevel refraction.', 'artistic-creation-environment' ) }
+						value={ creativeAttributes.aceCreativeLiquidGlassBevelDepth ?? ( GLASS_PRESET_VALUES[ creativeAttributes.aceCreativeLiquidGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).bevelDepth }
+						min={ 0 }
+						max={ 0.3 }
+						step={ 0.005 }
+						onChange={ ( v ) => setCreativeAttributes( { aceCreativeLiquidGlassBevelDepth: v, aceCreativeLiquidGlassPreset: 'custom' } ) }
+					/>
+					<RangeControl
+						label={ __( 'Bevel width', 'artistic-creation-environment' ) }
+						help={ __( 'Width of the edge bevel zone.', 'artistic-creation-environment' ) }
+						value={ creativeAttributes.aceCreativeLiquidGlassBevelWidth ?? ( GLASS_PRESET_VALUES[ creativeAttributes.aceCreativeLiquidGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).bevelWidth }
+						min={ 0 }
+						max={ 0.5 }
+						step={ 0.005 }
+						onChange={ ( v ) => setCreativeAttributes( { aceCreativeLiquidGlassBevelWidth: v, aceCreativeLiquidGlassPreset: 'custom' } ) }
+					/>
+					<RangeControl
+						label={ __( 'Frost', 'artistic-creation-environment' ) }
+						help={ __( 'Frosted glass blur. 0 = crystal clear, 10 = heavy frost.', 'artistic-creation-environment' ) }
+						value={ creativeAttributes.aceCreativeLiquidGlassFrost ?? ( GLASS_PRESET_VALUES[ creativeAttributes.aceCreativeLiquidGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).frost }
+						min={ 0 }
+						max={ 10 }
+						step={ 0.1 }
+						onChange={ ( v ) => setCreativeAttributes( { aceCreativeLiquidGlassFrost: v, aceCreativeLiquidGlassPreset: 'custom' } ) }
+					/>
+					<RangeControl
+						label={ __( 'Magnify', 'artistic-creation-environment' ) }
+						help={ __( 'Zooms the background through the glass lens.', 'artistic-creation-environment' ) }
+						value={ creativeAttributes.aceCreativeLiquidGlassMagnify ?? 1 }
+						min={ 0.5 }
+						max={ 3 }
+						step={ 0.05 }
+						onChange={ ( v ) => setCreativeAttributes( { aceCreativeLiquidGlassMagnify: v, aceCreativeLiquidGlassPreset: 'custom' } ) }
+					/>
+					<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
+						{ __( 'Shadow & Highlights', 'artistic-creation-environment' ) }
+					</p>
+					<ToggleControl
+						label={ __( 'Drop shadow', 'artistic-creation-environment' ) }
+						checked={ creativeAttributes.aceCreativeLiquidGlassShadow ?? ( GLASS_PRESET_VALUES[ creativeAttributes.aceCreativeLiquidGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).shadow }
+						onChange={ ( v ) => setCreativeAttributes( { aceCreativeLiquidGlassShadow: v, aceCreativeLiquidGlassPreset: 'custom' } ) }
+					/>
+					<ToggleControl
+						label={ __( 'Specular highlights', 'artistic-creation-environment' ) }
+						help={ __( 'Animated specular blobs on the glass surface.', 'artistic-creation-environment' ) }
+						checked={ creativeAttributes.aceCreativeLiquidGlassSpecular ?? ( GLASS_PRESET_VALUES[ creativeAttributes.aceCreativeLiquidGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).specular }
+						onChange={ ( v ) => setCreativeAttributes( { aceCreativeLiquidGlassSpecular: v, aceCreativeLiquidGlassPreset: 'custom' } ) }
+					/>
+					<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
+						{ __( 'Tilt', 'artistic-creation-environment' ) }
+					</p>
+					<ToggleControl
+						label={ __( 'Tilt on hover', 'artistic-creation-environment' ) }
+						checked={ !! creativeAttributes.aceCreativeLiquidGlassTilt }
+						onChange={ ( v ) => setCreativeAttributes( { aceCreativeLiquidGlassTilt: v } ) }
+					/>
+					{ !! creativeAttributes.aceCreativeLiquidGlassTilt && (
+						<RangeControl
+							label={ __( 'Tilt factor', 'artistic-creation-environment' ) }
+							value={ creativeAttributes.aceCreativeLiquidGlassTiltFactor ?? 5 }
+							min={ 1 }
+							max={ 25 }
+							step={ 0.5 }
+							onChange={ ( v ) => setCreativeAttributes( { aceCreativeLiquidGlassTiltFactor: v } ) }
+						/>
+					) }
+					<SelectControl
+						label={ __( 'Reveal animation', 'artistic-creation-environment' ) }
+						help={ __( '"None" shows the glass instantly. "Fade" fades it in over 1 second.', 'artistic-creation-environment' ) }
+						value={ creativeAttributes.aceCreativeLiquidGlassReveal || 'none' }
+						options={ [
+							{ label: __( 'None (instant)', 'artistic-creation-environment' ), value: 'none' },
+							{ label: __( 'Fade in',        'artistic-creation-environment' ), value: 'fade' },
+						] }
+						onChange={ ( v ) => setCreativeAttributes( { aceCreativeLiquidGlassReveal: v } ) }
+						/>
+						<RangeControl
+							label={ __( 'Render quality', 'artistic-creation-environment' ) }
+							help={ __( 'WebGL snapshot resolution (0.5–3.0). Higher = sharper but more GPU. First glass element on page sets this for all.', 'artistic-creation-environment' ) }
+							value={ creativeAttributes.aceCreativeLiquidGlassResolution ?? 2.0 }
+							min={ 0.5 }
+							max={ 3.0 }
+							step={ 0.1 }
+							onChange={ ( v ) => setCreativeAttributes( { aceCreativeLiquidGlassResolution: v, aceCreativeLiquidGlassPreset: 'custom' } ) }
+						/>
+						<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
+							{ __( 'Tint colour', 'artistic-creation-environment' ) }
+					</p>
+					<p style={ { fontSize: 11, color: '#757575', marginTop: 0, marginBottom: 8 } }>
+						{ __( "Tints the glass — auto-picks the block's background colour, or choose a custom colour.", 'artistic-creation-environment' ) }
 					</p>
 					<ColorPalette
 						value={ creativeAttributes.aceCreativeLiquidGlassTintColor || '' }
@@ -3868,6 +4127,8 @@ addFilter(
 				aceLiquidGlassTilt:       { type: 'boolean', default: false },
 				aceLiquidGlassTiltFactor: { type: 'number',  default: 5 },
 				aceLiquidGlassMagnify:    { type: 'number',  default: 1 },
+				aceLiquidGlassReveal:     { type: 'string',  default: 'none' },
+				aceLiquidGlassResolution: { type: 'number',  default: 2.0 },
 				aceLiquidGlassTintColor:  { type: 'string',  default: '' },
 				aceLiquidGlassTintOpacity:{ type: 'number',  default: 15 },
 			},
@@ -4001,6 +4262,8 @@ function getArtisticBtnDataAttrs( attributes ) {
 			aceLiquidGlassTilt,
 			aceLiquidGlassTiltFactor,
 			aceLiquidGlassMagnify,
+			aceLiquidGlassReveal,
+			aceLiquidGlassResolution,
 			aceLiquidGlassTintColor,
 			aceLiquidGlassTintOpacity,
 		} = attributes;
@@ -4014,6 +4277,8 @@ function getArtisticBtnDataAttrs( attributes ) {
 		attrs[ 'data-ace-lg-tilt'     ] = aceLiquidGlassTilt ? 'true' : 'false';
 		if ( aceLiquidGlassTiltFactor != null ) attrs[ 'data-ace-lg-tilt-factor' ] = aceLiquidGlassTiltFactor;
 		if ( aceLiquidGlassMagnify    != null ) attrs[ 'data-ace-lg-magnify'     ] = aceLiquidGlassMagnify;
+		attrs[ 'data-ace-lg-reveal'      ] = aceLiquidGlassReveal || 'none';
+		attrs[ 'data-ace-lg-resolution'  ] = String( aceLiquidGlassResolution ?? 2.0 );
 		// Tint: explicit tint colour takes priority; WP background colour is auto-detected by liquid-glass.js
 		const wpBg = getWPBlockBgColor( attributes );
 		if ( aceLiquidGlassTintColor ) attrs[ 'data-ace-glass-tint' ] = aceLiquidGlassTintColor;
@@ -4091,6 +4356,8 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 		aceLiquidGlassTilt,
 		aceLiquidGlassTiltFactor,
 		aceLiquidGlassMagnify,
+		aceLiquidGlassReveal,
+		aceLiquidGlassResolution,
 		aceLiquidGlassTintColor,
 		aceLiquidGlassTintOpacity,
 	} = attributes;
@@ -4310,6 +4577,7 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 										aceLiquidGlassPreset:     v,
 										aceLiquidGlassRefraction: p.refraction,
 										aceLiquidGlassBevelDepth: p.bevelDepth,
+										aceLiquidGlassBevelWidth: p.bevelWidth,
 										aceLiquidGlassFrost:      p.frost,
 										aceLiquidGlassShadow:     p.shadow,
 										aceLiquidGlassSpecular:   p.specular,
@@ -4384,6 +4652,25 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 							max={ 2 }
 							step={ 0.05 }
 							onChange={ ( v ) => setAttributes( { aceLiquidGlassMagnify: v } ) }
+						/>
+						<SelectControl
+							label={ __( 'Reveal animation', 'artistic-creation-environment' ) }
+							help={ __( '"None" shows the glass instantly. "Fade" fades it in over 1 second.', 'artistic-creation-environment' ) }
+							value={ aceLiquidGlassReveal || 'none' }
+							options={ [
+								{ label: __( 'None (instant)', 'artistic-creation-environment' ), value: 'none' },
+								{ label: __( 'Fade in',        'artistic-creation-environment' ), value: 'fade' },
+							] }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassReveal: v } ) }
+						/>
+						<RangeControl
+							label={ __( 'Render quality', 'artistic-creation-environment' ) }
+							help={ __( 'WebGL snapshot resolution (0.5–3.0). Higher = sharper but more GPU. First glass element on page sets this for all.', 'artistic-creation-environment' ) }
+							value={ aceLiquidGlassResolution ?? 2.0 }
+							min={ 0.5 }
+							max={ 3.0 }
+							step={ 0.1 }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassResolution: v } ) }
 						/>
 						<p style={ { fontWeight: 600, marginBottom: 4 } }>
 							{ __( 'Tint colour', 'artistic-creation-environment' ) }
@@ -4567,6 +4854,10 @@ aceStickyGlassBrightness:   { type: 'number',  default: null },
 aceStickyGlassEdgeOpacity:  { type: 'number',  default: null },
 aceStickyGlassEdgeShine:    { type: 'boolean', default: null },
 aceStickyGlassShadow:       { type: 'boolean', default: null },
+aceStickyGlassBevelWidth:   { type: 'number',  default: null },
+aceStickyGlassMagnify:      { type: 'number',  default: null },
+aceStickyGlassReveal:       { type: 'string',  default: 'none' },
+aceStickyGlassResolution:   { type: 'number',  default: 2.0 },
 },
 };
 }
@@ -4669,6 +4960,8 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 												aceStickyGlassEdgeOpacity: null,
 												aceStickyGlassEdgeShine:   null,
 												aceStickyGlassShadow:      null,
+												aceStickyGlassBevelWidth:  null,
+												aceStickyGlassMagnify:     null,
 											} );
 										} else {
 											setAttributes( { aceStickyGlassPreset: v } );
@@ -4752,6 +5045,48 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 								) }
 
 								<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
+									{ __( 'Lens', 'artistic-creation-environment' ) }
+								</p>
+								<RangeControl
+									label={ __( 'Bevel width', 'artistic-creation-environment' ) }
+									help={ __( 'Width of the edge bevel zone.', 'artistic-creation-environment' ) }
+									value={ attributes.aceStickyGlassBevelWidth ?? ( GLASS_PRESET_VALUES[ attributes.aceStickyGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).bevelWidth }
+									min={ 0 }
+									max={ 0.5 }
+									step={ 0.005 }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassBevelWidth: v, aceStickyGlassPreset: 'custom' } ) }
+								/>
+								<RangeControl
+									label={ __( 'Magnify', 'artistic-creation-environment' ) }
+									help={ __( 'Zooms the background through the glass lens.', 'artistic-creation-environment' ) }
+									value={ attributes.aceStickyGlassMagnify ?? 1 }
+									min={ 0.5 }
+									max={ 3 }
+									step={ 0.05 }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassMagnify: v, aceStickyGlassPreset: 'custom' } ) }
+								/>
+								<SelectControl
+									label={ __( 'Reveal animation', 'artistic-creation-environment' ) }
+									help={ __( '"None" shows the glass instantly. "Fade" fades it in over 1 second.', 'artistic-creation-environment' ) }
+									value={ attributes.aceStickyGlassReveal || 'none' }
+									options={ [
+										{ label: __( 'None (instant)', 'artistic-creation-environment' ), value: 'none' },
+										{ label: __( 'Fade in',        'artistic-creation-environment' ), value: 'fade' },
+									] }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassReveal: v } ) }
+								/>
+
+								<RangeControl
+									label={ __( 'Render quality', 'artistic-creation-environment' ) }
+									help={ __( 'WebGL snapshot resolution (0.5–3.0). Higher = sharper but more GPU. First glass element on page sets this for all.', 'artistic-creation-environment' ) }
+									value={ attributes.aceStickyGlassResolution ?? 2.0 }
+									min={ 0.5 }
+									max={ 3.0 }
+									step={ 0.1 }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassResolution: v } ) }
+								/>
+
+								<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
 									{ __( 'Tint', 'artistic-creation-environment' ) }
 								</p>
 								<p style={ { fontSize: 11, color: '#757575', marginTop: 0, marginBottom: 8 } }>
@@ -4815,10 +5150,12 @@ const result = {
 'data-ace-lg-frost':       lgFrost.toFixed( 3 ),
 'data-ace-lg-refraction':  lgRefr.toFixed( 4 ),
 'data-ace-lg-bevel-depth': lgBevelD.toFixed( 4 ),
-'data-ace-lg-bevel-width': '0.211',
+'data-ace-lg-bevel-width': String( attributes.aceStickyGlassBevelWidth ?? lgPreset.bevelWidth ?? 0.211 ),
 'data-ace-lg-shadow':      lgShadow   ? 'true' : 'false',
 'data-ace-lg-specular':    lgSpecular ? 'true' : 'false',
-'data-ace-lg-magnify':     '1',
+'data-ace-lg-magnify':     String( attributes.aceStickyGlassMagnify ?? 1 ),
+'data-ace-lg-reveal':      attributes.aceStickyGlassReveal || 'none',
+'data-ace-lg-resolution':  String( attributes.aceStickyGlassResolution ?? 2.0 ),
 'data-ace-lg-tilt':        attributes.aceStickyGlassTilt ? 'true' : 'false',
 style: {
 	...( extraProps.style || {} ),

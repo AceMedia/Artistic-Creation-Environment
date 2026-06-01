@@ -11,12 +11,12 @@
 
 	// Raw preset values — must mirror GLASS_PRESET_VALUES in index.js.
 	var PRESETS = {
-		'default': { refraction: 0,     bevelDepth: 0.052, frost: 2,   shadow: true,  specular: true  },
-		'alien'  : { refraction: 0.073, bevelDepth: 0.2,   frost: 2,   shadow: true,  specular: false },
-		'pulse'  : { refraction: 0.03,  bevelDepth: 0,     frost: 0,   shadow: false, specular: false },
-		'frost'  : { refraction: 0,     bevelDepth: 0.035, frost: 0.9, shadow: true,  specular: true  },
-		'edge'   : { refraction: 0.047, bevelDepth: 0.136, frost: 2,   shadow: true,  specular: false },
-		'custom' : { refraction: 0,     bevelDepth: 0.052, frost: 2,   shadow: true,  specular: true  },
+		'default': { refraction: 0,     bevelDepth: 0.052, bevelWidth: 0.211, frost: 2,   shadow: true,  specular: true  },
+		'alien'  : { refraction: 0.073, bevelDepth: 0.2,   bevelWidth: 0.156, frost: 2,   shadow: true,  specular: false },
+		'pulse'  : { refraction: 0.03,  bevelDepth: 0,     bevelWidth: 0.273, frost: 0,   shadow: false, specular: false },
+		'frost'  : { refraction: 0,     bevelDepth: 0.035, bevelWidth: 0.119, frost: 0.9, shadow: true,  specular: true  },
+		'edge'   : { refraction: 0.047, bevelDepth: 0.136, bevelWidth: 0.076, frost: 2,   shadow: true,  specular: false },
+		'custom' : { refraction: 0,     bevelDepth: 0.052, bevelWidth: 0.211, frost: 2,   shadow: true,  specular: true  },
 	};
 
 	// Reads liquidGL options from an element's data-ace-lg-* attributes.
@@ -28,13 +28,15 @@
 		return {
 			refraction: num( el.dataset.aceLgRefraction,  preset.refraction ),
 			bevelDepth: num( el.dataset.aceLgBevelDepth,  preset.bevelDepth ),
-			bevelWidth: num( el.dataset.aceLgBevelWidth,  0.211 ),
+			bevelWidth: num( el.dataset.aceLgBevelWidth,  preset.bevelWidth !== undefined ? preset.bevelWidth : 0.211 ),
 			frost:      num( el.dataset.aceLgFrost,       preset.frost ),
 			specular:   el.dataset.aceLgSpecular !== 'false',
 			shadow:     el.dataset.aceLgShadow   !== 'false',
 			tilt:       el.dataset.aceLgTilt === 'true',
-			tiltFactor: num( el.dataset.aceLgTiltFactor, 5 ),
-			magnify:    num( el.dataset.aceLgMagnify,    1 ),
+			tiltFactor:  num( el.dataset.aceLgTiltFactor,  5 ),
+			magnify:     num( el.dataset.aceLgMagnify,     1 ),
+			reveal:      el.dataset.aceLgReveal === 'fade' ? 'fade' : 'none',
+			resolution:  num( el.dataset.aceLgResolution,  2.0 ),
 		};
 	}
 
@@ -52,21 +54,19 @@
 			window.liquidGL( Object.assign( { target: '#' + el.id }, opts ) );
 		} catch ( e ) { /* silent — CSS fallback remains active */ }
 
-		// The liquidGL Lens constructor runs synchronously and immediately overrides
-		// three inline styles on the element before any async rendering occurs:
+		// The liquidGL Lens constructor runs synchronously and immediately sets:
 		//   el.style.opacity          = 0       (hides the element entirely)
 		//   el.style.backdropFilter   = "none"  (kills the CSS glass fallback)
 		//   el.style.background       = "transparent"
-		// The element is invisible until liquidGL calls _reveal() async (after
-		// html2canvas captures the page) — this is what caused the header to vanish.
-		//
-		// Fix: undo the opacity and backdrop-filter overrides immediately after the
-		// constructor runs. The element then stays visible with CSS glass while
-		// liquidGL renders its first WebGL frame. When _reveal() fires it restores
-		// opacity to the saved original ('' || 1 = 1) so nothing conflicts.
-		// We leave background:transparent so the WebGL canvas below shows through.
+		// The element is invisible until _reveal() fires async (after html2canvas).
+		// Fix: undo these overrides so the element stays visible with CSS glass while
+		// the WebGL canvas renders its first frame.
+		// Exception: if reveal is 'fade', keep opacity:0 so the intentional 1s fade
+		// animation works — only restore backdrop-filter so CSS glass shows during fade.
 		if ( ! window.__liquidGLNoWebGL__ ) {
-			el.style.removeProperty( 'opacity' );
+			if ( opts.reveal !== 'fade' ) {
+				el.style.removeProperty( 'opacity' );
+			}
 			el.style.removeProperty( 'backdrop-filter' );
 			el.style.removeProperty( '-webkit-backdrop-filter' );
 		}
