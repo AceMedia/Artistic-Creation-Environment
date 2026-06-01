@@ -54,26 +54,26 @@
 			window.liquidGL( Object.assign( { target: '#' + el.id }, opts ) );
 		} catch ( e ) { /* silent — CSS fallback remains active */ }
 
-		// The liquidGL Lens constructor runs synchronously and immediately sets:
-		//   el.style.opacity          = 0       (hides the element entirely)
-		//   el.style.backdropFilter   = "none"  (kills the CSS glass fallback)
-		//   el.style.background       = "transparent"
-		// The element is invisible until _reveal() fires async (after html2canvas).
-		// Fix: undo these overrides so the element stays visible with CSS glass while
-		// the WebGL canvas renders its first frame.
-		// Exception: if reveal is 'fade', keep opacity:0 so the intentional 1s fade
-		// animation works — only restore backdrop-filter so CSS glass shows during fade.
-		if ( ! window.__liquidGLNoWebGL__ ) {
-			if ( opts.reveal !== 'fade' ) {
-				el.style.removeProperty( 'opacity' );
-			}
-			el.style.removeProperty( 'backdrop-filter' );
-			el.style.removeProperty( '-webkit-backdrop-filter' );
-			// liquidGL sets pointer-events:none on the target element to prevent
-			// hover interference during snapshot, but never restores it — this makes
-			// the entire block unclickable. Undo it immediately so links/buttons work.
-			el.style.removeProperty( 'pointer-events' );
+		// The liquidGL Lens constructor ALWAYS sets these inline styles synchronously:
+		//   el.style.opacity        = 0         (hides the element entirely)
+		//   el.style.backdropFilter = "none"    (kills the CSS glass fallback)
+		//   el.style.pointerEvents  = "none"    (blocks all clicks — never restored)
+		// We undo them unconditionally so elements are always visible and interactive.
+		//
+		// EXTRA HAZARD — fade-reveal cross-element trampling:
+		// When ANY glass element uses reveal:'fade', liquidGL's animate loop iterates
+		// ALL renderer lenses and resets their opacity to 0 at frame 0.  This makes
+		// every other non-fade glass element vanish for 1 second.
+		// Fix: add class 'ace-gl-opaque' (opacity:1 !important) for 2.5 s so the
+		// !important rule wins over liquidGL's inline assignment during the animation.
+		if ( opts.reveal !== 'fade' ) {
+			el.style.removeProperty( 'opacity' );
+			el.classList.add( 'ace-gl-opaque' );
+			setTimeout( function () { el.classList.remove( 'ace-gl-opaque' ); }, 2500 );
 		}
+		el.style.removeProperty( 'backdrop-filter' );
+		el.style.removeProperty( '-webkit-backdrop-filter' );
+		el.style.removeProperty( 'pointer-events' );
 	}
 
 	// Convert raw preset values to CSS custom property string/values.
@@ -245,6 +245,10 @@
 			'  display: inline;' +
 			'  -webkit-box-decoration-break: clone; box-decoration-break: clone;' +
 			'}' +
+			// ── Opacity guard ────────────────────────────────────────────────
+			// Protects non-fade glass elements from liquidGL's cross-element fade
+			// animation, which resets ALL renderer lenses' opacity to 0 at frame 0.
+			'.ace-gl-opaque { opacity: 1 !important; }' +
 			// Progressive enhancement: color-mix() for theme CSS var colours
 			colorMixBlock;
 		var s    = document.createElement( 'style' );
