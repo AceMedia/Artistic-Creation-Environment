@@ -94,6 +94,7 @@
       this.scaleFactor = 1;
       this.startTime = Date.now();
       this._scrollUpdateCounter = 0;
+      this._snapshotViewportOrigin = { left: 0, top: 0 };
       this._snapshotResolution = Math.max(
         0.1,
         Math.min(3.0, snapshotResolution)
@@ -414,6 +415,39 @@
       this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     }
 
+    _getViewportChromeOffset() {
+      const offset = { left: 0, top: 0 };
+      const adminBar = document.getElementById("wpadminbar");
+      if (adminBar) {
+        const adminStyle = window.getComputedStyle(adminBar);
+        const adminRect = adminBar.getBoundingClientRect();
+        if (
+          adminStyle.display !== "none" &&
+          adminStyle.visibility !== "hidden" &&
+          adminStyle.position === "fixed" &&
+          adminRect.height > 0
+        ) {
+          offset.top = Math.max(offset.top, adminRect.bottom);
+        }
+      }
+
+      const htmlStyle = window.getComputedStyle(document.documentElement);
+      const htmlMarginTop = parseFloat(htmlStyle.marginTop) || 0;
+      if (htmlMarginTop > 0) {
+        offset.top = Math.max(offset.top, htmlMarginTop);
+      }
+
+      if (document.body && document.body.classList.contains("admin-bar")) {
+        const bodyStyle = window.getComputedStyle(document.body);
+        const bodyPaddingTop = parseFloat(bodyStyle.paddingTop) || 0;
+        if (bodyPaddingTop > 0) {
+          offset.top = Math.max(offset.top, bodyPaddingTop);
+        }
+      }
+
+      return offset;
+    }
+
     /* ----------------------------- */
     async captureSnapshot() {
       if (this._capturing || typeof html2canvas === "undefined") return;
@@ -447,6 +481,16 @@
 
           this.canvas.style.visibility = "hidden";
           undos.push(() => (this.canvas.style.visibility = "visible"));
+
+          const snapshotRect = this.snapshotTarget.getBoundingClientRect();
+          const chromeOffset = this._getViewportChromeOffset();
+          this._snapshotViewportOrigin = {
+            left: snapshotRect.left + (window.visualViewport ? window.visualViewport.offsetLeft : 0),
+            top: Math.max(
+              snapshotRect.top + (window.visualViewport ? window.visualViewport.offsetTop : 0),
+              chromeOffset.top
+            ),
+          };
 
           const lensElements = this.lenses
             .flatMap((lens) => [lens.el, lens._shadowEl])
@@ -707,11 +751,15 @@
       const viewportOffsetY = window.visualViewport
         ? window.visualViewport.offsetTop
         : 0;
+      const snapshotViewportOrigin = this._snapshotViewportOrigin || {
+        left: 0,
+        top: 0,
+      };
       const docX = isViewportLocked
-        ? rect.left + viewportOffsetX
+        ? rect.left + viewportOffsetX - snapshotViewportOrigin.left
         : rect.left - snapRect.left;
       const docY = isViewportLocked
-        ? rect.top + viewportOffsetY
+        ? rect.top + viewportOffsetY - snapshotViewportOrigin.top
         : rect.top - snapRect.top;
       const leftUV = (docX * this.scaleFactor) / this.textureWidth;
       const topUV = (docY * this.scaleFactor) / this.textureHeight;
