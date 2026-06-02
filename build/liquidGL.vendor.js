@@ -257,6 +257,8 @@
         uniform float u_tiltX;
         uniform float u_tiltY;
         uniform float u_magnify;
+        uniform vec3  u_tintColor;
+        uniform float u_tintAlpha;
 
         float udRoundBox( vec2 p, vec2 b, float r ) {
           vec2 q = abs(p) - b + vec2(r);
@@ -346,6 +348,10 @@
             final.rgb += h;
           }
 
+          float tintAlpha = clamp(u_tintAlpha, 0.0, 1.0);
+          final.rgb = mix(final.rgb, u_tintColor, tintAlpha);
+          final.a = max(final.a, tintAlpha);
+
           if (u_revealType == 1) {
               final.rgb *= u_revealProgress;
               final.a  *= u_revealProgress;
@@ -393,6 +399,8 @@
         tiltX: gl.getUniformLocation(this.program, "u_tiltX"),
         tiltY: gl.getUniformLocation(this.program, "u_tiltY"),
         magnify: gl.getUniformLocation(this.program, "u_magnify"),
+        tintColor: gl.getUniformLocation(this.program, "u_tintColor"),
+        tintAlpha: gl.getUniformLocation(this.program, "u_tintAlpha"),
       };
     }
 
@@ -722,6 +730,11 @@
       gl.uniform1f(this.u.frost, lens.options.frost);
       gl.uniform1f(this.u.radius, lens.radiusGl);
       gl.uniform1i(this.u.specular, lens.options.specular ? 1 : 0);
+      const tintColor = Array.isArray(lens.options.tintColor)
+        ? lens.options.tintColor
+        : [1, 1, 1];
+      gl.uniform3f(this.u.tintColor, tintColor[0], tintColor[1], tintColor[2]);
+      gl.uniform1f(this.u.tintAlpha, lens.options.tintAlpha || 0);
       gl.uniform1f(this.u.revealProgress, lens._revealProgress || 1.0);
       gl.uniform1i(this.u.revealType, lens.revealTypeIndex || 0);
 
@@ -1976,6 +1989,8 @@
       tilt: false,
       tiltFactor: 5,
       magnify: 1,
+      tintColor: [1, 1, 1],
+      tintAlpha: 0,
       on: {},
     };
     const options = { ...defaults, ...userOptions };

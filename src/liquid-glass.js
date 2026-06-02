@@ -50,6 +50,7 @@
 	];
 	function readLGOptions( el ) {
 		var preset = PRESETS[ el.dataset.aceLgPreset ] || PRESETS['default'];
+		var tint   = readLGTint( el );
 		function num( val, fallback ) { return ( val !== undefined && val !== '' ) ? parseFloat( val ) : fallback; }
 		return {
 			refraction: num( el.dataset.aceLgRefraction,  preset.refraction ),
@@ -63,6 +64,39 @@
 			magnify:     num( el.dataset.aceLgMagnify,     1 ),
 			reveal:      el.dataset.aceLgReveal === 'fade' ? 'fade' : 'none',
 			resolution:  num( el.dataset.aceLgResolution,  2.0 ),
+			tintColor:   tint.color,
+			tintAlpha:   tint.alpha,
+		};
+	}
+
+	function readLGTint( el ) {
+		var opacity = parseInt( el.dataset.aceGlassTintOpacity, 10 );
+		var alpha   = isNaN( opacity ) ? 0 : Math.max( 0, Math.min( 1, opacity / 100 ) );
+		var tint    = el.dataset.aceGlassTint || el.style.getPropertyValue( '--ace-glass-tint-color' );
+		var rgba    = el.style.getPropertyValue( '--ace-glass-tint' );
+		var parsed  = parseRGBAColor( rgba );
+
+		if ( ! parsed && tint ) {
+			parsed = parseRGBAColor( resolveColorToRGBA( tint, alpha.toFixed( 2 ) ) );
+		}
+		if ( ! parsed ) {
+			return { color: [ 1, 1, 1 ], alpha: 0 };
+		}
+		return {
+			color: [ parsed.r / 255, parsed.g / 255, parsed.b / 255 ],
+			alpha: parsed.a != null ? parsed.a : alpha,
+		};
+	}
+
+	function parseRGBAColor( color ) {
+		if ( ! color ) { return null; }
+		var m = String( color ).match( /[\d.]+/g );
+		if ( ! m || m.length < 3 ) { return null; }
+		return {
+			r: Math.max( 0, Math.min( 255, parseFloat( m[0] ) ) ),
+			g: Math.max( 0, Math.min( 255, parseFloat( m[1] ) ) ),
+			b: Math.max( 0, Math.min( 255, parseFloat( m[2] ) ) ),
+			a: m.length >= 4 ? Math.max( 0, Math.min( 1, parseFloat( m[3] ) ) ) : null,
 		};
 	}
 
