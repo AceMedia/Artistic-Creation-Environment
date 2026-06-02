@@ -259,7 +259,8 @@
         uniform float u_magnify;
 
         float udRoundBox( vec2 p, vec2 b, float r ) {
-          return length(max(abs(p)-b+r,0.0))-r;
+          vec2 q = abs(p) - b + vec2(r);
+          return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
         }
 
         float random(vec2 st) {
