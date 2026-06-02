@@ -202,6 +202,49 @@
 		return colors;
 	}
 
+	function isBlackOrWhite( hex ) {
+		var rgb = hexToRgb( hex );
+		if ( ! rgb ) { return false; }
+		return ( rgb.r <= 12 && rgb.g <= 12 && rgb.b <= 12 ) ||
+			( rgb.r >= 243 && rgb.g >= 243 && rgb.b >= 243 );
+	}
+
+	function hexToRgb( hex ) {
+		var m = /^#([0-9a-f]{6})$/i.exec( hex );
+		if ( ! m ) { return null; }
+		var n = parseInt( m[ 1 ], 16 );
+		return {
+			r: ( n >> 16 ) & 255,
+			g: ( n >> 8 ) & 255,
+			b: n & 255,
+		};
+	}
+
+	function isGreyColor( hex ) {
+		var rgb = hexToRgb( hex );
+		if ( ! rgb || isBlackOrWhite( hex ) ) { return false; }
+		var max = Math.max( rgb.r, rgb.g, rgb.b );
+		var min = Math.min( rgb.r, rgb.g, rgb.b );
+		var chroma = max - min;
+		var lightness = ( max + min ) / 510;
+		var saturation = chroma === 0 ? 0 : chroma / ( 255 * ( 1 - Math.abs( 2 * lightness - 1 ) ) );
+		return chroma <= Math.max( 24, max * 0.18 ) || saturation <= 0.32;
+	}
+
+	function sanitizeMagicSparkleColors( colors ) {
+		var clean = [ '#ffffff', '#000000' ];
+		var seen = { '#ffffff': true, '#000000': true };
+		( colors || [] ).forEach( function ( color ) {
+			var hex = String( color || '' ).toLowerCase();
+			if ( ! /^#[0-9a-f]{6}$/.test( hex ) || isBlackOrWhite( hex ) || isGreyColor( hex ) || seen[ hex ] ) {
+				return;
+			}
+			seen[ hex ] = true;
+			clean.push( hex );
+		} );
+		return clean;
+	}
+
 	// Extract hex colours from the element's CSS variables / classes.
 	// Result is cached on the element so getComputedStyle is only called once per element.
 	function getElementColors( el ) {
@@ -245,7 +288,7 @@
 				}
 			} catch ( e ) {}
 			if ( colors.length < 2 ) colors = DEFAULT_COLORS.slice( 0, -1 );
-			colors = colors.concat( [ '#ffffff' ] );
+			colors = sanitizeMagicSparkleColors( colors );
 		}
 
 		if ( ! isTextSpan ) el._aceColors = colors;
@@ -493,4 +536,3 @@
 		init();
 	}
 } )();
-

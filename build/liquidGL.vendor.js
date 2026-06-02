@@ -94,6 +94,12 @@
       this.scaleFactor = 1;
       this.startTime = Date.now();
       this._scrollUpdateCounter = 0;
+      this._snapshotResolution = Math.max(
+        0.1,
+        Math.min(3.0, snapshotResolution)
+      );
+      this._pendingReveal = [];
+      this.useExternalTicker = false;
 
       this._initGL();
 
@@ -158,8 +164,6 @@
       this._resizeCanvas();
       this.captureSnapshot();
 
-      this._pendingReveal = [];
-
       /* --------------------------------------------------
        *  Dynamic media (video) support
        * ------------------------------------------------*/
@@ -171,13 +175,6 @@
       this._tmpCtx = this._tmpCanvas.getContext("2d");
 
       this.canvas.style.opacity = "0";
-
-      this._snapshotResolution = Math.max(
-        0.1,
-        Math.min(3.0, snapshotResolution)
-      );
-
-      this.useExternalTicker = false;
 
       /* --------------------------------------------------
        *  Inline worker for heavy dynamic nodes
@@ -691,8 +688,22 @@
       gl.viewport(x, y, w, h);
       gl.uniform2f(this.u.res, w, h);
 
-      const docX = rect.left - this.snapshotTarget.getBoundingClientRect().left;
-      const docY = rect.top - this.snapshotTarget.getBoundingClientRect().top;
+      const snapRect = this.snapshotTarget.getBoundingClientRect();
+      const isViewportLocked =
+        lens.el.closest &&
+        lens.el.closest(".wp-block-cover.has-parallax, .wp-block-cover__image-background.has-parallax");
+      const viewportOffsetX = window.visualViewport
+        ? window.visualViewport.offsetLeft
+        : 0;
+      const viewportOffsetY = window.visualViewport
+        ? window.visualViewport.offsetTop
+        : 0;
+      const docX = isViewportLocked
+        ? rect.left + viewportOffsetX
+        : rect.left - snapRect.left;
+      const docY = isViewportLocked
+        ? rect.top + viewportOffsetY
+        : rect.top - snapRect.top;
       const leftUV = (docX * this.scaleFactor) / this.textureWidth;
       const topUV = (docY * this.scaleFactor) / this.textureHeight;
       const wUV = (rect.width * this.scaleFactor) / this.textureWidth;

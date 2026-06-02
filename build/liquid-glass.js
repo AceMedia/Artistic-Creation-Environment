@@ -16,12 +16,38 @@
 		'pulse'  : { refraction: 0.03,  bevelDepth: 0,     bevelWidth: 0.273, frost: 0,   shadow: false, specular: false },
 		'frost'  : { refraction: 0,     bevelDepth: 0.035, bevelWidth: 0.119, frost: 0.9, shadow: true,  specular: true  },
 		'edge'   : { refraction: 0.047, bevelDepth: 0.136, bevelWidth: 0.076, frost: 2,   shadow: true,  specular: false },
+		'demo-nav' : { refraction: 0,     bevelDepth: 0.052, bevelWidth: 0.211, frost: 2,   shadow: true,  specular: true  },
+		'demo-card': { refraction: 0,     bevelDepth: 0.1,   bevelWidth: 0.17,  frost: 2,   shadow: true,  specular: true  },
+		'crystal'  : { refraction: 0.026, bevelDepth: 0.119, bevelWidth: 0.057, frost: 0,   shadow: true,  specular: true  },
+		'morph'    : { refraction: 0,     bevelDepth: 0.052, bevelWidth: 0.211, frost: 7,   shadow: false, specular: true  },
 		'custom' : { refraction: 0,     bevelDepth: 0.052, bevelWidth: 0.211, frost: 2,   shadow: true,  specular: true  },
 	};
 
 	// Reads liquidGL options from an element's data-ace-lg-* attributes.
 	// Falls back to the preset's raw values when an attribute is absent.
 	var _lgIdCounter = 0;
+	var _mutationObserver = null;
+	var _initScheduled = false;
+	var _refreshScheduled = false;
+	var _refreshBound = false;
+	var GLASS_ATTRS = [
+		'data-ace-lg-preset',
+		'data-ace-lg-refraction',
+		'data-ace-lg-bevel-depth',
+		'data-ace-lg-bevel-width',
+		'data-ace-lg-frost',
+		'data-ace-lg-shadow',
+		'data-ace-lg-specular',
+		'data-ace-lg-tilt',
+		'data-ace-lg-tilt-factor',
+		'data-ace-lg-magnify',
+		'data-ace-lg-reveal',
+		'data-ace-lg-resolution',
+		'data-ace-glass-tint',
+		'data-ace-glass-tint-opacity',
+		'data-ace-liquid-glass',
+		'data-ace-sticky-glass',
+	];
 	function readLGOptions( el ) {
 		var preset = PRESETS[ el.dataset.aceLgPreset ] || PRESETS['default'];
 		function num( val, fallback ) { return ( val !== undefined && val !== '' ) ? parseFloat( val ) : fallback; }
@@ -45,14 +71,125 @@
 	// the element's bounds — we then suppress the CSS backdrop-filter on that element
 	// so the two glass layers don't stack and double-blur.
 	// Silently falls back to CSS if liquidGL is absent or WebGL is unavailable.
-	function callLiquidGL( el, opts ) {
-		if ( typeof window.liquidGL !== 'function' ) { return; }
+	function getEffectiveZ( el ) {
+		var node = el;
+		while ( node && node !== document.body ) {
+			var style = window.getComputedStyle( node );
+			if ( style.position !== 'static' && style.zIndex !== 'auto' ) {
+				var z = parseInt( style.zIndex, 10 );
+				if ( ! isNaN( z ) ) { return z; }
+			}
+			node = node.parentElement;
+		}
+		return 0;
+	}
+
+	function ensureLiquidGLStacking( el ) {
+		if ( window.getComputedStyle( el ).position === 'static' ) {
+			el.style.position = 'relative';
+		}
+		var ownZ = parseInt( window.getComputedStyle( el ).zIndex, 10 );
+		if ( isNaN( ownZ ) || ownZ < 3001 ) {
+			el.style.zIndex = '3001';
+		}
+		var node = el.parentElement;
+		while ( node && node !== document.body ) {
+			var style = window.getComputedStyle( node );
+			var z     = parseInt( style.zIndex, 10 );
+			var createsStack = ( style.position !== 'static' && style.zIndex !== 'auto' ) ||
+				style.transform !== 'none' ||
+				style.filter !== 'none' ||
+				parseFloat( style.opacity ) < 1 ||
+				style.isolation === 'isolate';
+			if ( createsStack && ( isNaN( z ) || z < 3001 ) ) {
+				if ( style.position === 'static' ) {
+					node.style.position = 'relative';
+				}
+				node.style.zIndex = '3001';
+				node.classList.add( 'ace-liquidgl-stack' );
+			}
+			node = node.parentElement;
+		}
+	}
+
+	function warnLiquidGLError( message, error ) {
+		if ( window.console && typeof window.console.warn === 'function' ) {
+			window.console.warn( message, error );
+		}
+	}
+
+	function getFirstLens( glassEffect ) {
+		return Array.isArray( glassEffect ) ? glassEffect[0] : glassEffect;
+	}
+
+	function isLiquidGLLens( lens, el ) {
+		return !! ( lens && lens.renderer && lens.options && lens.el === el );
+	}
+
+	function activateWebGLLens( lens, el, owner ) {
+		if ( ! isLiquidGLLens( lens, el ) ) { return false; }
+		el.__aceLiquidGLLens = lens;
+		el.classList.add( 'ace-liquidgl-target' );
+		( owner || el ).classList.add( 'ace-liquidgl-webgl' );
+		return true;
+	}
+
+	function refreshExistingLens( el, opts, owner ) {
+		var lens = el.__aceLiquidGLLens;
+		if ( ! isLiquidGLLens( lens, el ) ) { return false; }
+		var previousShadow = lens.options.shadow;
+		var previousTilt = lens.options.tilt;
+		Object.keys( opts ).forEach( function ( key ) {
+			lens.options[ key ] = opts[ key ];
+		} );
+		if ( previousShadow !== opts.shadow && typeof lens.setShadow === 'function' ) {
+			lens.setShadow( opts.shadow );
+		}
+		if ( previousTilt !== opts.tilt && typeof lens.setTilt === 'function' ) {
+			lens.setTilt( opts.tilt );
+		}
+		if ( typeof lens.updateMetrics === 'function' ) {
+			lens.updateMetrics();
+		}
+		if ( lens.renderer && typeof lens.renderer.render === 'function' ) {
+			lens.renderer.render();
+		}
+		if ( lens.renderer && typeof lens.renderer.captureSnapshot === 'function' ) {
+			lens.renderer.captureSnapshot();
+		}
+		if ( lens._initCalled ) {
+			activateWebGLLens( lens, el, owner );
+		}
+		return true;
+	}
+
+	function callLiquidGL( el, opts, owner ) {
+		if ( typeof window.liquidGL !== 'function' ) { return false; }
+		el.classList.add( 'liquidGL' );
 		if ( ! el.id ) {
 			el.id = 'ace-gl-' + ( ++_lgIdCounter );
 		}
+		ensureLiquidGLStacking( el );
+		if ( refreshExistingLens( el, opts, owner ) ) {
+			return true;
+		}
+		var glassEffect = null;
+		var originalInit = opts.on && opts.on.init;
+		var liquidOpts = Object.assign( {}, opts, {
+			on: Object.assign( {}, opts.on || {}, {
+				init: function ( instance ) {
+					activateWebGLLens( instance, el, owner );
+					if ( typeof originalInit === 'function' ) {
+						originalInit( instance );
+					}
+				},
+			} ),
+		} );
 		try {
-			window.liquidGL( Object.assign( { target: '#' + el.id }, opts ) );
-		} catch ( e ) { /* silent — CSS fallback remains active */ }
+			glassEffect = window.liquidGL( Object.assign( { target: '#' + el.id, snapshot: 'body' }, liquidOpts ) );
+		} catch ( e ) {
+			warnLiquidGLError( 'ACE liquidGL: WebGL initialisation failed; CSS glass fallback remains active.', e );
+		}
 
 		// The liquidGL Lens constructor ALWAYS sets these inline styles synchronously:
 		//   el.style.opacity        = 0         (hides the element entirely)
@@ -74,6 +211,90 @@
 		el.style.removeProperty( 'backdrop-filter' );
 		el.style.removeProperty( '-webkit-backdrop-filter' );
 		el.style.removeProperty( 'pointer-events' );
+		var lens = getFirstLens( glassEffect );
+		if ( isLiquidGLLens( lens, el ) ) {
+			el.__aceLiquidGLLens = lens;
+			return true;
+		}
+		return false;
+	}
+
+	function normalizeGlassTarget( target ) {
+		if ( window.getComputedStyle( target ).position === 'static' ) {
+			target.style.position = 'relative';
+		}
+		target.classList.add( 'liquidGL', 'ace-liquid-glass-wrap' );
+		target.setAttribute( 'data-ace-liquid-glass-wrap', 'true' );
+		Array.prototype.forEach.call( target.children || [], function ( child ) {
+			if ( child.classList ) {
+				child.classList.add( 'ace-liquid-glass-content' );
+			}
+		} );
+		return target;
+	}
+
+	function syncTargetShapeFromContent( target, content ) {
+		if ( ! target || ! content ) { return; }
+		var contentStyle = window.getComputedStyle( content );
+		var targetStyle  = window.getComputedStyle( target );
+		[
+			'border-top-left-radius',
+			'border-top-right-radius',
+			'border-bottom-right-radius',
+			'border-bottom-left-radius',
+		].forEach( function ( property ) {
+			var current = targetStyle.getPropertyValue( property );
+			var next    = contentStyle.getPropertyValue( property );
+			if ( ( ! current || current === '0px' ) && next && next !== '0px' ) {
+				target.style.setProperty( property, next );
+			}
+		} );
+		if ( ! target.style.overflow ) {
+			target.style.overflow = 'visible';
+		}
+	}
+
+	function refreshLiquidGLLenses() {
+		var renderer = window.__liquidGLRenderer__;
+		if ( ! renderer || ! Array.isArray( renderer.lenses ) ) { return; }
+		renderer.lenses.forEach( function ( lens ) {
+			if ( ! lens || ! lens.el || ! lens.el.getAttribute || lens.el.getAttribute( 'data-ace-liquid-glass-wrap' ) !== 'true' ) {
+				return;
+			}
+			lens._baseRect = null;
+			if ( typeof lens.updateMetrics === 'function' ) {
+				lens.updateMetrics();
+			}
+			if ( typeof lens._shadowSyncFn === 'function' ) {
+				lens._shadowSyncFn();
+			}
+			if ( lens._mirrorActive && typeof lens._mirrorClipUpdater === 'function' ) {
+				lens._mirrorClipUpdater();
+			}
+		} );
+		if ( typeof renderer.render === 'function' ) {
+			renderer.render();
+		}
+	}
+
+	function scheduleLensRefresh() {
+		if ( _refreshScheduled ) { return; }
+		_refreshScheduled = true;
+		window.requestAnimationFrame( function () {
+			_refreshScheduled = false;
+			refreshLiquidGLLenses();
+		} );
+	}
+
+	function bindLensRefresh() {
+		if ( _refreshBound ) { return; }
+		_refreshBound = true;
+		window.addEventListener( 'scroll', scheduleLensRefresh, { passive: true } );
+		window.addEventListener( 'resize', scheduleLensRefresh, { passive: true } );
+		if ( window.visualViewport ) {
+			window.visualViewport.addEventListener( 'scroll', scheduleLensRefresh, { passive: true } );
+			window.visualViewport.addEventListener( 'resize', scheduleLensRefresh, { passive: true } );
+		}
 	}
 
 	// Convert raw preset values to CSS custom property string/values.
@@ -163,8 +384,8 @@
 	// property references (e.g. theme palette vars) without JS colour-parsing.
 	function injectGlassCSS() {
 		if ( document.getElementById( 'ace-glass-styles' ) ) { return; }
-		var colorMixBlock = ( CSS && typeof CSS.supports === 'function' &&
-			CSS.supports( 'background', 'color-mix(in srgb, white 1%, transparent)' ) )
+		var colorMixBlock = ( window.CSS && typeof window.CSS.supports === 'function' &&
+			window.CSS.supports( 'background', 'color-mix(in srgb, white 1%, transparent)' ) )
 			? (
 				// Buttons
 				'@supports(background:color-mix(in srgb,white 1%,transparent)){' +
@@ -178,6 +399,13 @@
 			) : '';
 
 		var css =
+			'.ace-liquid-glass-wrap {' +
+			'  isolation: auto;' +
+			'}' +
+			'.ace-liquid-glass-content,' +
+			'.ace-liquid-glass-wrap > * {' +
+			'  position: relative; z-index: 2;' +
+			'}' +
 			// ── Glass buttons ────────────────────────────────────────────────
 			'.ace-artistic-btn--liquid-glass .wp-block-button__link {' +
 			'  background: var(--ace-glass-tint, rgba(255,255,255,0.12)) !important;' +
@@ -191,9 +419,8 @@
 			'    brightness(var(--ace-glass-brightness, 1.15));' +
 			'  border: 1px solid var(--ace-glass-border, rgba(255,255,255,0.3)) !important;' +
 			'  box-shadow: var(--ace-glass-shadow, 0 4px 24px rgba(0,0,0,0.12)) !important;' +
-			'  color: rgba(255,255,255,0.95) !important;' +
 			'  text-shadow: 0 1px 2px rgba(0,0,0,0.25);' +
-			'  position: relative; z-index: 1;' +
+			'  position: relative; z-index: 2;' +
 			'}' +
 			// ── Creative block glass overlay ─────────────────────────────────
 			'.wp-block-artistic-creation-environment-creative[data-ace-liquid-glass="true"]' +
@@ -245,6 +472,27 @@
 			'  display: inline;' +
 			'  -webkit-box-decoration-break: clone; box-decoration-break: clone;' +
 			'}' +
+			// ── WebGL-active mode ────────────────────────────────────────────
+			// Once liquidGL succeeds, the canvas supplies refraction/bevel/specular.
+			// Keep foreground content, but remove CSS glass fallback from targets.
+			'.ace-liquidgl-target {' +
+			'  position: relative;' +
+			'  z-index: 3001;' +
+			'  background: transparent !important;' +
+			'  background-image: none !important;' +
+			'  backdrop-filter: none !important;' +
+			'  -webkit-backdrop-filter: none !important;' +
+			'  box-shadow: none !important;' +
+			'}' +
+			'.ace-liquidgl-stack {' +
+			'  z-index: 3001;' +
+			'}' +
+			'.ace-liquidgl-webgl.ace-artistic-btn--liquid-glass .wp-block-button__link {' +
+			'  background: transparent !important;' +
+			'  backdrop-filter: none !important;' +
+			'  -webkit-backdrop-filter: none !important;' +
+			'  box-shadow: none !important;' +
+			'}' +
 			// ── Opacity guard ────────────────────────────────────────────────
 			// Protects non-fade glass elements from liquidGL's cross-element fade
 			// animation, which resets ALL renderer lenses' opacity to 0 at frame 0.
@@ -289,6 +537,7 @@
 		document.querySelectorAll( '.ace-artistic-btn--liquid-glass' ).forEach( function ( wrapper ) {
 			var link = wrapper.querySelector( '.wp-block-button__link' );
 			if ( ! link ) { return; }
+			syncTargetShapeFromContent( wrapper, link );
 			// Fallback: if no CSS vars baked in (older saved blocks), set from preset.
 			if ( ! wrapper.style.getPropertyValue( '--ace-glass-blur' ) ) {
 				setCSSVarsFromPreset( wrapper, wrapper.dataset.aceLgPreset || 'default' );
@@ -296,10 +545,12 @@
 			// Apply tint from data attributes — editor bakes these in for new saves;
 			// this covers any older blocks that predate the tint feature.
 			applyTintFromDataAttrs( wrapper );
-			link.style.position = link.style.position || 'relative';
-			link.style.zIndex   = link.style.zIndex   || '1';
-			// WebGL glass via liquidGL — data attrs come from the wrapper element.
-			callLiquidGL( link, readLGOptions( wrapper ) );
+			callLiquidGL(
+				normalizeGlassTarget( wrapper ),
+				readLGOptions( wrapper ),
+				wrapper
+			);
+			scheduleLensRefresh();
 			// CSS tilt is only the fallback for when WebGL is not available;
 			// liquidGL handles its own tilt when WebGL renders.
 			if ( wrapper.dataset.aceLgTilt === 'true' && window.__liquidGLNoWebGL__ ) {
@@ -320,13 +571,17 @@
 				setCSSVarsFromPreset( block, block.dataset.aceLgPreset || 'default' );
 			}
 			applyTintFromDataAttrs( block );
+			block.classList.add( 'artistic-creative--liquid-glass' );
 			// Remove isolation:isolate so backdrop-filter composites against the
 			// full page — including animated backgrounds outside the block.
 			block.style.isolation = 'auto';
 			inner.style.position  = inner.style.position || 'relative';
-			inner.style.zIndex    = inner.style.zIndex   || '1';
-			// WebGL glass via liquidGL using the preset values from the block element.
-			callLiquidGL( inner, readLGOptions( block ) );
+			callLiquidGL(
+				normalizeGlassTarget( inner ),
+				readLGOptions( block ),
+				block
+			);
+			scheduleLensRefresh();
 		} );
 	}
 
@@ -338,12 +593,95 @@
 			}
 			applyTintFromDataAttrs( el );
 			el.style.isolation = 'auto';
-			// WebGL glass via liquidGL — options baked as data attrs by the save filter.
-			callLiquidGL( el, readLGOptions( el ) );
+			callLiquidGL(
+				normalizeGlassTarget( el ),
+				readLGOptions( el ),
+				el
+			);
+			scheduleLensRefresh();
 			// CSS tilt fallback when WebGL is not available.
 			if ( el.dataset.aceLgTilt === 'true' && window.__liquidGLNoWebGL__ ) {
 				bindTilt( el, el, el.dataset.aceLgTiltFactor );
 			}
+		} );
+	}
+
+	function syncDynamicContent() {
+		if ( typeof window.liquidGL !== 'function' || ! window.__liquidGLRenderer__ ) { return; }
+		if ( typeof window.liquidGL.registerDynamic === 'function' ) {
+			[
+				'.ace-glass-text',
+				'.ace-magic-text',
+				'.ace-aurora-text',
+				'.ace-neon-text',
+				'.ace-prism-text',
+				'.ace-plasma-text',
+				'.ace-inferno-text',
+				'.liquidGL',
+				'.ace-liquidgl-target',
+				'.artistic-creative--liquid-glass',
+				'.artistic-creative__layer',
+				'.artistic-creative__overlay',
+				'.artistic-creative--child-interactivity',
+			].forEach( function ( selector ) {
+				try {
+					window.liquidGL.registerDynamic( selector );
+				} catch ( e ) {
+					warnLiquidGLError( 'ACE liquidGL: Dynamic element registration failed for ' + selector + '.', e );
+				}
+			} );
+		}
+		if ( typeof window.liquidGL.syncWith === 'function' && ! window.__aceLiquidGLSynced ) {
+			window.__aceLiquidGLSynced = true;
+			try {
+				window.liquidGL.syncWith();
+			} catch ( e ) {
+				warnLiquidGLError( 'ACE liquidGL: Scroll sync failed; base render loop remains active.', e );
+			}
+		}
+	}
+
+	function isGlassElement( el ) {
+		return !! ( el && el.nodeType === 1 && (
+			el.matches( '.ace-artistic-btn--liquid-glass, [data-ace-liquid-glass="true"], [data-ace-sticky-glass="true"]' ) ||
+			el.querySelector( '.ace-artistic-btn--liquid-glass, [data-ace-liquid-glass="true"], [data-ace-sticky-glass="true"]' )
+		) );
+	}
+
+	function scheduleInit() {
+		if ( _initScheduled ) { return; }
+		_initScheduled = true;
+		window.requestAnimationFrame( function () {
+			_initScheduled = false;
+			initButtons();
+			initCreativeBlocks();
+			initStickyBlocks();
+			syncDynamicContent();
+		} );
+	}
+
+	function observeGlassChanges() {
+		if ( _mutationObserver || typeof MutationObserver === 'undefined' || ! document.body ) { return; }
+		_mutationObserver = new MutationObserver( function ( mutations ) {
+			var shouldInit = mutations.some( function ( mutation ) {
+				if ( mutation.type === 'attributes' ) {
+					return GLASS_ATTRS.indexOf( mutation.attributeName ) !== -1 &&
+						isGlassElement( mutation.target );
+				}
+				if ( mutation.type === 'childList' ) {
+					return Array.prototype.some.call( mutation.addedNodes, isGlassElement );
+				}
+				return false;
+			} );
+			if ( shouldInit ) {
+				scheduleInit();
+			}
+		} );
+		_mutationObserver.observe( document.body, {
+			subtree: true,
+			childList: true,
+			attributes: true,
+			attributeFilter: GLASS_ATTRS,
 		} );
 	}
 
@@ -352,6 +690,9 @@
 		initButtons();
 		initCreativeBlocks();
 		initStickyBlocks();
+		syncDynamicContent();
+		observeGlassChanges();
+		bindLensRefresh();
 	}
 
 	if ( document.readyState === 'loading' ) {

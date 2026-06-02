@@ -416,6 +416,16 @@ const CONTENT_EFFECT_PRESETS = {
 		aceCreativeContentBorderOpacity: 0.2,
 		aceCreativeContentSurfaceColor: DEFAULT_CONTENT_SURFACE_COLOR,
 		aceCreativeContentInvert: false,
+		aceCreativeLiquidGlassPreset: 'demo-card',
+		aceCreativeLiquidGlassRefraction: null,
+		aceCreativeLiquidGlassBevelDepth: null,
+		aceCreativeLiquidGlassBevelWidth: null,
+		aceCreativeLiquidGlassFrost: null,
+		aceCreativeLiquidGlassShadow: null,
+		aceCreativeLiquidGlassSpecular: null,
+		aceCreativeLiquidGlassMagnify: 1.15,
+		aceCreativeLiquidGlassReveal: 'none',
+		aceCreativeLiquidGlassResolution: 2.5,
 	},
 };
 
@@ -771,6 +781,9 @@ const getOuterClassName = ( attributes = {} ) =>
 		hasContentEffects( attributes )
 			? 'artistic-creative--content-effects'
 			: null,
+		attributes.aceCreativeContentEffectPreset === 'liquid-glass'
+			? 'artistic-creative--liquid-glass'
+			: null,
 		hasChildInteractivity( attributes )
 			? 'artistic-creative--child-interactivity'
 			: null,
@@ -850,6 +863,10 @@ const GLASS_PRESET_VALUES = {
 	pulse:   { refraction: 0.03,  bevelDepth: 0,     bevelWidth: 0.273, frost: 0,   shadow: false, specular: false },
 	frost:   { refraction: 0,     bevelDepth: 0.035, bevelWidth: 0.119, frost: 0.9, shadow: true,  specular: true  },
 	edge:    { refraction: 0.047, bevelDepth: 0.136, bevelWidth: 0.076, frost: 2,   shadow: true,  specular: false },
+	'demo-nav':  { refraction: 0,     bevelDepth: 0.052, bevelWidth: 0.211, frost: 2, shadow: true,  specular: true },
+	'demo-card': { refraction: 0,     bevelDepth: 0.1,   bevelWidth: 0.17,  frost: 2, shadow: true,  specular: true },
+	crystal:     { refraction: 0.026, bevelDepth: 0.119, bevelWidth: 0.057, frost: 0, shadow: true,  specular: true },
+	morph:       { refraction: 0,     bevelDepth: 0.052, bevelWidth: 0.211, frost: 7, shadow: false, specular: true },
 	// Custom: same baseline as default — sliders drive everything.
 	custom:  { refraction: 0,     bevelDepth: 0.052, bevelWidth: 0.211, frost: 2,   shadow: true,  specular: true  },
 };
@@ -1653,6 +1670,9 @@ const getInnerLayoutProps = ( blockProps = {}, attributes = {} ) => {
 	return {
 		className: [
 			'artistic-creative__inner-container',
+			attributes.aceCreativeContentEffectPreset === 'liquid-glass'
+				? 'liquidGL'
+				: null,
 			layoutType,
 			layoutType && blockBaseClass
 				? `${ blockBaseClass }-${ layoutType }`
@@ -2736,12 +2756,12 @@ const CreativeBlockEdit = ( props = {} ) => {
 					initialOpen={ false }
 				>
 					<SelectControl
-						label={ __( 'Text treatment preset', 'artistic-creation-environment' ) }
+						label={ __( 'Content glass/effect preset', 'artistic-creation-environment' ) }
 						value={ attributes.aceCreativeContentEffectPreset || 'none' }
 						options={ CONTENT_EFFECT_PRESET_OPTIONS }
 						onChange={ applyContentPreset }
 						help={ __(
-							'Applies glass, frost, inverted, or glow styling to headings, paragraphs, quotes, lists, and buttons inside this Creative block.',
+							'Applies CSS content treatments or a real liquidGL WebGL glass pane around the Creative block content.',
 							'artistic-creation-environment'
 						) }
 					/>
@@ -2811,7 +2831,7 @@ const CreativeBlockEdit = ( props = {} ) => {
 							label={ __( 'Magnify', 'artistic-creation-environment' ) }
 							help={ __( 'Zooms the background through the glass lens.', 'artistic-creation-environment' ) }
 							value={ attributes.aceCreativeLiquidGlassMagnify ?? 1 }
-							min={ 0.5 }
+							min={ 0.001 }
 							max={ 3 }
 							step={ 0.05 }
 							onChange={ ( v ) => setAttributes( { aceCreativeLiquidGlassMagnify: v, aceCreativeLiquidGlassPreset: 'custom' } ) }
@@ -3381,10 +3401,14 @@ const CreativeChildContentEffectsControls = ( props = {} ) => {
 					) }
 				</p>
 				<SelectControl
-					label={ __( 'Text treatment preset', 'artistic-creation-environment' ) }
+					label={ __( 'Content glass/effect preset', 'artistic-creation-environment' ) }
 					value={ creativeAttributes.aceCreativeContentEffectPreset || 'none' }
 					options={ CONTENT_EFFECT_PRESET_OPTIONS }
 					onChange={ applyCreativeContentPreset }
+					help={ __(
+						'Liquid Glass uses the bundled liquidGL renderer; other presets are lightweight CSS content treatments.',
+						'artistic-creation-environment'
+					) }
 				/>
 				{ creativeAttributes.aceCreativeContentEffectPreset === 'liquid-glass' && (
 					<>
@@ -3452,7 +3476,7 @@ const CreativeChildContentEffectsControls = ( props = {} ) => {
 						label={ __( 'Magnify', 'artistic-creation-environment' ) }
 						help={ __( 'Zooms the background through the glass lens.', 'artistic-creation-environment' ) }
 						value={ creativeAttributes.aceCreativeLiquidGlassMagnify ?? 1 }
-						min={ 0.5 }
+						min={ 0.001 }
 						max={ 3 }
 						step={ 0.05 }
 						onChange={ ( v ) => setCreativeAttributes( { aceCreativeLiquidGlassMagnify: v, aceCreativeLiquidGlassPreset: 'custom' } ) }
@@ -3725,6 +3749,10 @@ const GLASS_FORMAT_TYPE   = 'ace/glass-text';
 // Preset options shared between the button panel, Creative block overlay, and sticky block panel.
 const LIQUID_GLASS_PRESET_OPTIONS = [
 	{ label: __( 'Default', 'artistic-creation-environment' ), value: 'default' },
+	{ label: __( 'Demo nav', 'artistic-creation-environment' ), value: 'demo-nav' },
+	{ label: __( 'Demo card', 'artistic-creation-environment' ), value: 'demo-card' },
+	{ label: __( 'Crystal reveal', 'artistic-creation-environment' ), value: 'crystal' },
+	{ label: __( 'Morph frost', 'artistic-creation-environment' ), value: 'morph' },
 	{ label: __( 'Frost',   'artistic-creation-environment' ), value: 'frost'   },
 	{ label: __( 'Alien',   'artistic-creation-environment' ), value: 'alien'   },
 	{ label: __( 'Pulse',   'artistic-creation-environment' ), value: 'pulse'   },
@@ -4616,7 +4644,7 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 							label={ __( 'Frost', 'artistic-creation-environment' ) }
 							value={ aceLiquidGlassFrost != null ? aceLiquidGlassFrost : 2 }
 							min={ 0 }
-							max={ 4 }
+							max={ 10 }
 							step={ 0.1 }
 							onChange={ ( v ) => setAttributes( { aceLiquidGlassFrost: v, aceLiquidGlassPreset: 'custom' } ) }
 						/>
@@ -4640,7 +4668,7 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 								label={ __( 'Tilt factor', 'artistic-creation-environment' ) }
 								value={ aceLiquidGlassTiltFactor != null ? aceLiquidGlassTiltFactor : 5 }
 								min={ 1 }
-								max={ 20 }
+								max={ 25 }
 								step={ 1 }
 								onChange={ ( v ) => setAttributes( { aceLiquidGlassTiltFactor: v } ) }
 							/>
@@ -4648,10 +4676,10 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 						<RangeControl
 							label={ __( 'Magnify', 'artistic-creation-environment' ) }
 							value={ aceLiquidGlassMagnify != null ? aceLiquidGlassMagnify : 1 }
-							min={ 0.8 }
-							max={ 2 }
+							min={ 0.001 }
+							max={ 3 }
 							step={ 0.05 }
-							onChange={ ( v ) => setAttributes( { aceLiquidGlassMagnify: v } ) }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassMagnify: v, aceLiquidGlassPreset: 'custom' } ) }
 						/>
 						<SelectControl
 							label={ __( 'Reveal animation', 'artistic-creation-environment' ) }
@@ -4670,7 +4698,7 @@ function ArtisticButtonControls( { attributes, setAttributes } ) {
 							min={ 0.5 }
 							max={ 3.0 }
 							step={ 0.1 }
-							onChange={ ( v ) => setAttributes( { aceLiquidGlassResolution: v } ) }
+							onChange={ ( v ) => setAttributes( { aceLiquidGlassResolution: v, aceLiquidGlassPreset: 'custom' } ) }
 						/>
 						<p style={ { fontWeight: 600, marginBottom: 4 } }>
 							{ __( 'Tint colour', 'artistic-creation-environment' ) }
@@ -5038,7 +5066,7 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 										label={ __( 'Tilt factor', 'artistic-creation-environment' ) }
 										value={ attributes.aceStickyGlassTiltFactor ?? 5 }
 										min={ 1 }
-										max={ 15 }
+										max={ 25 }
 										step={ 0.5 }
 										onChange={ ( v ) => setAttributes( { aceStickyGlassTiltFactor: v } ) }
 									/>
@@ -5083,7 +5111,7 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 									min={ 0.5 }
 									max={ 3.0 }
 									step={ 0.1 }
-									onChange={ ( v ) => setAttributes( { aceStickyGlassResolution: v } ) }
+									onChange={ ( v ) => setAttributes( { aceStickyGlassResolution: v, aceStickyGlassPreset: 'custom' } ) }
 								/>
 
 								<p style={ { fontWeight: 600, marginBottom: 4, marginTop: 12 } }>
@@ -5145,6 +5173,7 @@ const lgShadow  = attributes.aceStickyGlassShadow  ?? lgPreset.shadow;
 const lgSpecular = attributes.aceStickyGlassEdgeShine ?? lgPreset.specular;
 const result = {
 ...extraProps,
+className: [ extraProps.className, 'liquidGL' ].filter( Boolean ).join( ' ' ),
 'data-ace-sticky-glass': 'true',
 'data-ace-lg-preset':      attributes.aceStickyGlassPreset || 'default',
 'data-ace-lg-frost':       lgFrost.toFixed( 3 ),
