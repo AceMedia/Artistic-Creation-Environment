@@ -476,7 +476,6 @@
 			// Once liquidGL succeeds, the canvas supplies refraction/bevel/specular.
 			// Keep foreground content, but remove CSS glass fallback from targets.
 			'.ace-liquidgl-target {' +
-			'  position: relative;' +
 			'  z-index: 3001;' +
 			'  background: transparent !important;' +
 			'  background-image: none !important;' +
