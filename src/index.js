@@ -938,22 +938,50 @@ function getCreativeGlassCSSVarsFromAttrs( attributes = {} ) {
 // Any attribute left at its default (null) leaves the preset value unchanged.
 function applyGroupGlassOverrides( vars, attrs ) {
 	const v = { ...vars };
-	if ( attrs.aceStickyGlassBlur        != null ) v[ '--ace-glass-blur'       ] = `${ attrs.aceStickyGlassBlur }px`;
-	if ( attrs.aceStickyGlassSaturate    != null ) v[ '--ace-glass-saturate'   ] = `${ attrs.aceStickyGlassSaturate }%`;
-	if ( attrs.aceStickyGlassBrightness  != null ) v[ '--ace-glass-brightness' ] = `${ attrs.aceStickyGlassBrightness }`;
-	if ( attrs.aceStickyGlassEdgeOpacity != null ) {
-		v[ '--ace-glass-border' ] = `rgba(255,255,255,${ ( attrs.aceStickyGlassEdgeOpacity / 100 ).toFixed( 2 ) })`;
+	const values = getGroupLiquidGlassValues( attrs );
+	if ( attrs.aceStickyGlassFrost != null || attrs.aceStickyGlassBlur != null ) {
+		v[ '--ace-glass-blur' ] = `${ Math.round( values.frost * 8 ) }px`;
+	}
+	if ( attrs.aceStickyGlassRefraction != null || attrs.aceStickyGlassSaturate != null ) {
+		v[ '--ace-glass-saturate' ] = `${ Math.round( 150 + values.refraction * 600 ) }%`;
+	}
+	if ( attrs.aceStickyGlassSpecular != null || attrs.aceStickyGlassBrightness != null || attrs.aceStickyGlassEdgeShine != null ) {
+		v[ '--ace-glass-brightness' ] = attrs.aceStickyGlassBrightness != null
+			? `${ attrs.aceStickyGlassBrightness }`
+			: `${ values.specular ? 1.2 : 1.08 }`;
+	}
+	if ( attrs.aceStickyGlassBevelDepth != null || attrs.aceStickyGlassEdgeOpacity != null ) {
+		v[ '--ace-glass-border' ] = `rgba(255,255,255,${ ( 0.18 + values.bevelDepth ).toFixed( 2 ) })`;
 	}
 	// Shadow and edge shine are co-dependent; if either is customised we rebuild
 	// the full box-shadow string so both values are honoured simultaneously.
-	if ( attrs.aceStickyGlassShadow != null || attrs.aceStickyGlassEdgeShine != null ) {
-		const useShadow = attrs.aceStickyGlassShadow  ?? true;
-		const useShine  = attrs.aceStickyGlassEdgeShine ?? false;
-		v[ '--ace-glass-shadow' ] = useShadow
-			? `0 6px 28px rgba(0,0,0,0.14)${ useShine ? ', inset 0 1px 0 rgba(255,255,255,0.5)' : '' }`
+	if ( attrs.aceStickyGlassShadow != null || attrs.aceStickyGlassSpecular != null || attrs.aceStickyGlassEdgeShine != null ) {
+		v[ '--ace-glass-shadow' ] = values.shadow
+			? `0 6px 28px rgba(0,0,0,0.14)${ values.specular ? ', inset 0 1px 0 rgba(255,255,255,0.5)' : '' }`
 			: 'none';
 	}
 	return v;
+}
+
+function getGroupLiquidGlassValues( attrs = {} ) {
+	const preset = GLASS_PRESET_VALUES[ attrs.aceStickyGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default;
+	return {
+		refraction: attrs.aceStickyGlassRefraction != null
+			? attrs.aceStickyGlassRefraction
+			: ( attrs.aceStickyGlassSaturate != null ? Math.max( 0, ( attrs.aceStickyGlassSaturate - 150 ) / 600 ) : preset.refraction ),
+		bevelDepth: attrs.aceStickyGlassBevelDepth != null
+			? attrs.aceStickyGlassBevelDepth
+			: ( attrs.aceStickyGlassEdgeOpacity != null ? Math.max( 0, attrs.aceStickyGlassEdgeOpacity / 100 - 0.18 ) : preset.bevelDepth ),
+		bevelWidth: attrs.aceStickyGlassBevelWidth ?? preset.bevelWidth ?? 0.211,
+		frost: attrs.aceStickyGlassFrost != null
+			? attrs.aceStickyGlassFrost
+			: ( attrs.aceStickyGlassBlur != null ? attrs.aceStickyGlassBlur / 8 : preset.frost ),
+		shadow: attrs.aceStickyGlassShadow ?? preset.shadow,
+		specular: attrs.aceStickyGlassSpecular ?? attrs.aceStickyGlassEdgeShine ?? preset.specular,
+		magnify: attrs.aceStickyGlassMagnify ?? 1,
+		reveal: attrs.aceStickyGlassReveal || 'none',
+		resolution: attrs.aceStickyGlassResolution ?? 2.0,
+	};
 }
 
 // Returns true if the block has any native WP border set (colour, width, style,
@@ -4875,6 +4903,10 @@ aceStickyGlassTilt:         { type: 'boolean', default: false },
 aceStickyGlassTiltFactor:   { type: 'number',  default: 5 },
 aceStickyGlassTintColor:    { type: 'string',  default: '' },
 aceStickyGlassTintOpacity:  { type: 'number',  default: 15 },
+aceStickyGlassRefraction:   { type: 'number',  default: null },
+aceStickyGlassBevelDepth:   { type: 'number',  default: null },
+aceStickyGlassFrost:        { type: 'number',  default: null },
+aceStickyGlassSpecular:     { type: 'boolean', default: null },
 // Per-control overrides — null means "inherit from preset".
 aceStickyGlassBlur:         { type: 'number',  default: null },
 aceStickyGlassSaturate:     { type: 'number',  default: null },
@@ -4915,9 +4947,20 @@ const withGlassGroupWrapper = createHigherOrderComponent(
 		);
 			const tintSrc = attributes.aceStickyGlassTintColor || getWPBlockBgColor( attributes ) || null;
 			const noBorder = hasNativeBlockBorder( attributes );
+			const lgValues = getGroupLiquidGlassValues( attributes );
 			const wrapperProps = {
 				...( props.wrapperProps || {} ),
 				'data-ace-sticky-glass': 'true',
+				'data-ace-lg-preset': attributes.aceStickyGlassPreset || 'default',
+				'data-ace-lg-refraction': String( lgValues.refraction ),
+				'data-ace-lg-bevel-depth': String( lgValues.bevelDepth ),
+				'data-ace-lg-bevel-width': String( lgValues.bevelWidth ),
+				'data-ace-lg-frost': String( lgValues.frost ),
+				'data-ace-lg-shadow': lgValues.shadow ? 'true' : 'false',
+				'data-ace-lg-specular': lgValues.specular ? 'true' : 'false',
+				'data-ace-lg-magnify': String( lgValues.magnify ),
+				'data-ace-lg-reveal': lgValues.reveal,
+				'data-ace-lg-resolution': String( lgValues.resolution ),
 				'data-ace-lg-tilt': attributes.aceStickyGlassTilt ? 'true' : 'false',
 				'data-ace-lg-tilt-factor': String( attributes.aceStickyGlassTiltFactor ?? 5 ),
 				...( tintSrc ? { 'data-ace-glass-tint': tintSrc } : {} ),
@@ -4988,7 +5031,11 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 												aceStickyGlassEdgeOpacity: null,
 												aceStickyGlassEdgeShine:   null,
 												aceStickyGlassShadow:      null,
+												aceStickyGlassRefraction:  null,
+												aceStickyGlassBevelDepth:  null,
 												aceStickyGlassBevelWidth:  null,
+												aceStickyGlassFrost:       null,
+												aceStickyGlassSpecular:    null,
 												aceStickyGlassMagnify:     null,
 											} );
 										} else {
@@ -5076,6 +5123,31 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 									{ __( 'Lens', 'artistic-creation-environment' ) }
 								</p>
 								<RangeControl
+									label={ __( 'Refraction', 'artistic-creation-environment' ) }
+									help={ __( '0 = pure lens, higher = stronger liquid distortion.', 'artistic-creation-environment' ) }
+									value={ attributes.aceStickyGlassRefraction ?? ( GLASS_PRESET_VALUES[ attributes.aceStickyGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).refraction }
+									min={ 0 }
+									max={ 0.15 }
+									step={ 0.005 }
+									onChange={ ( v ) => setAttributes( {
+										aceStickyGlassRefraction: v,
+										aceStickyGlassSaturate: null,
+										aceStickyGlassPreset: 'custom',
+									} ) }
+								/>
+								<RangeControl
+									label={ __( 'Bevel depth', 'artistic-creation-environment' ) }
+									value={ attributes.aceStickyGlassBevelDepth ?? ( GLASS_PRESET_VALUES[ attributes.aceStickyGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).bevelDepth }
+									min={ 0 }
+									max={ 0.3 }
+									step={ 0.005 }
+									onChange={ ( v ) => setAttributes( {
+										aceStickyGlassBevelDepth: v,
+										aceStickyGlassEdgeOpacity: null,
+										aceStickyGlassPreset: 'custom',
+									} ) }
+								/>
+								<RangeControl
 									label={ __( 'Bevel width', 'artistic-creation-environment' ) }
 									help={ __( 'Width of the edge bevel zone.', 'artistic-creation-environment' ) }
 									value={ attributes.aceStickyGlassBevelWidth ?? ( GLASS_PRESET_VALUES[ attributes.aceStickyGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).bevelWidth }
@@ -5083,6 +5155,28 @@ const withLiquidGlassStickyControls = createHigherOrderComponent(
 									max={ 0.5 }
 									step={ 0.005 }
 									onChange={ ( v ) => setAttributes( { aceStickyGlassBevelWidth: v, aceStickyGlassPreset: 'custom' } ) }
+								/>
+								<RangeControl
+									label={ __( 'Frost', 'artistic-creation-environment' ) }
+									help={ __( 'LiquidGL frost amount; also drives fallback blur.', 'artistic-creation-environment' ) }
+									value={ attributes.aceStickyGlassFrost ?? ( GLASS_PRESET_VALUES[ attributes.aceStickyGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).frost }
+									min={ 0 }
+									max={ 10 }
+									step={ 0.1 }
+									onChange={ ( v ) => setAttributes( {
+										aceStickyGlassFrost: v,
+										aceStickyGlassBlur: null,
+										aceStickyGlassPreset: 'custom',
+									} ) }
+								/>
+								<ToggleControl
+									label={ __( 'Specular highlights', 'artistic-creation-environment' ) }
+									checked={ attributes.aceStickyGlassSpecular ?? attributes.aceStickyGlassEdgeShine ?? ( GLASS_PRESET_VALUES[ attributes.aceStickyGlassPreset || 'default' ] || GLASS_PRESET_VALUES.default ).specular }
+									onChange={ ( v ) => setAttributes( {
+										aceStickyGlassSpecular: v,
+										aceStickyGlassEdgeShine: null,
+										aceStickyGlassPreset: 'custom',
+									} ) }
 								/>
 								<RangeControl
 									label={ __( 'Magnify', 'artistic-creation-environment' ) }
@@ -5156,35 +5250,21 @@ addFilter(
 ( extraProps, blockType, attributes ) => {
 if ( blockType.name === 'artistic-creation-environment/creative' ) { return extraProps; }
 if ( ! attributes.aceStickyGlass ) { return extraProps; }
-const lgPreset = GLASS_PRESET_VALUES[ attributes.aceStickyGlassPreset ] || GLASS_PRESET_VALUES.default;
-// Derive liquidGL WebGL parameters from the CSS-control overrides (or fall back to
-// the preset's raw values).  These are baked as data-ace-lg-* attrs so liquid-glass.js
-// can initialise the WebGL renderer with the correct settings.
-const lgFrost   = attributes.aceStickyGlassBlur        != null
-	? attributes.aceStickyGlassBlur / 8
-	: lgPreset.frost;
-const lgRefr    = attributes.aceStickyGlassSaturate    != null
-	? Math.max( 0, ( attributes.aceStickyGlassSaturate - 150 ) / 600 )
-	: lgPreset.refraction;
-const lgBevelD  = attributes.aceStickyGlassEdgeOpacity != null
-	? Math.max( 0, attributes.aceStickyGlassEdgeOpacity / 100 - 0.18 )
-	: lgPreset.bevelDepth;
-const lgShadow  = attributes.aceStickyGlassShadow  ?? lgPreset.shadow;
-const lgSpecular = attributes.aceStickyGlassEdgeShine ?? lgPreset.specular;
+const lgValues = getGroupLiquidGlassValues( attributes );
 const result = {
 ...extraProps,
 className: [ extraProps.className, 'liquidGL' ].filter( Boolean ).join( ' ' ),
 'data-ace-sticky-glass': 'true',
 'data-ace-lg-preset':      attributes.aceStickyGlassPreset || 'default',
-'data-ace-lg-frost':       lgFrost.toFixed( 3 ),
-'data-ace-lg-refraction':  lgRefr.toFixed( 4 ),
-'data-ace-lg-bevel-depth': lgBevelD.toFixed( 4 ),
-'data-ace-lg-bevel-width': String( attributes.aceStickyGlassBevelWidth ?? lgPreset.bevelWidth ?? 0.211 ),
-'data-ace-lg-shadow':      lgShadow   ? 'true' : 'false',
-'data-ace-lg-specular':    lgSpecular ? 'true' : 'false',
-'data-ace-lg-magnify':     String( attributes.aceStickyGlassMagnify ?? 1 ),
-'data-ace-lg-reveal':      attributes.aceStickyGlassReveal || 'none',
-'data-ace-lg-resolution':  String( attributes.aceStickyGlassResolution ?? 2.0 ),
+'data-ace-lg-frost':       String( lgValues.frost ),
+'data-ace-lg-refraction':  String( lgValues.refraction ),
+'data-ace-lg-bevel-depth': String( lgValues.bevelDepth ),
+'data-ace-lg-bevel-width': String( lgValues.bevelWidth ),
+'data-ace-lg-shadow':      lgValues.shadow   ? 'true' : 'false',
+'data-ace-lg-specular':    lgValues.specular ? 'true' : 'false',
+'data-ace-lg-magnify':     String( lgValues.magnify ),
+'data-ace-lg-reveal':      lgValues.reveal,
+'data-ace-lg-resolution':  String( lgValues.resolution ),
 'data-ace-lg-tilt':        attributes.aceStickyGlassTilt ? 'true' : 'false',
 style: {
 	...( extraProps.style || {} ),
