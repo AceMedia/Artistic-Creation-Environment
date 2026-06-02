@@ -497,7 +497,21 @@
 			// animation, which resets ALL renderer lenses' opacity to 0 at frame 0.
 			'.ace-gl-opaque { opacity: 1 !important; }' +
 			// Progressive enhancement: color-mix() for theme CSS var colours
-			colorMixBlock;
+			colorMixBlock +
+			// Keep this last: color-mix fallback rules above also target sticky/group glass.
+			'.ace-liquidgl-target {' +
+			'  background: transparent !important;' +
+			'  background-image: none !important;' +
+			'  backdrop-filter: none !important;' +
+			'  -webkit-backdrop-filter: none !important;' +
+			'  box-shadow: none !important;' +
+			'}' +
+			'.ace-liquidgl-webgl.ace-artistic-btn--liquid-glass .wp-block-button__link {' +
+			'  background: transparent !important;' +
+			'  backdrop-filter: none !important;' +
+			'  -webkit-backdrop-filter: none !important;' +
+			'  box-shadow: none !important;' +
+			'}';
 		var s    = document.createElement( 'style' );
 		s.id     = 'ace-glass-styles';
 		s.textContent = css;
