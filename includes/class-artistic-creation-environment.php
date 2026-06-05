@@ -9,6 +9,15 @@ class Artistic_Creation_Environment {
 	const LEGACY_OPTION_NAME  = 'ace_cover_creative_backgrounds_settings';
 	const SETTINGS_KEY        = 'artistic_creation_environment';
 	const MENU_SLUG    = 'artistic-creation-environment';
+	const EFFECT_SCRIPT_HANDLES = array(
+		'liquid-splash'          => 'artistic-creation-environment-runtime',
+		'ascii-world'            => 'artistic-creation-environment-ascii',
+		'aurora-flow'            => 'artistic-creation-environment-aurora',
+		'particle-constellation' => 'artistic-creation-environment-constellation',
+		'neon-topography'        => 'artistic-creation-environment-topo',
+		'glass-caustics'         => 'artistic-creation-environment-caustics',
+		'magnetic-dust'          => 'artistic-creation-environment-dust',
+	);
 
 	/**
 	 * Single plugin instance.
@@ -49,6 +58,7 @@ class Artistic_Creation_Environment {
 		add_action( 'init', array( $this, 'register_assets' ) );
 		add_action( 'enqueue_block_editor_assets', array( $this, 'enqueue_editor_assets' ) );
 		add_action( 'enqueue_block_assets', array( $this, 'enqueue_block_assets' ) );
+		add_filter( 'render_block', array( $this, 'enqueue_rendered_block_assets' ), 10, 2 );
 		add_action( 'admin_menu', array( $this, 'register_settings_page' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_settings_assets' ) );
@@ -122,31 +132,31 @@ class Artistic_Creation_Environment {
 			$editor_dependencies = isset( $asset['dependencies'] ) ? $asset['dependencies'] : array();
 
 			if ( file_exists( $runtime_script_path ) ) {
-				$editor_dependencies[] = 'artistic-creation-environment-runtime';
+				$editor_dependencies[] = self::EFFECT_SCRIPT_HANDLES['liquid-splash'];
 			}
 
 			if ( file_exists( $ascii_script_path ) ) {
-				$editor_dependencies[] = 'artistic-creation-environment-ascii';
+				$editor_dependencies[] = self::EFFECT_SCRIPT_HANDLES['ascii-world'];
 			}
 
 			if ( file_exists( $aurora_script_path ) ) {
-				$editor_dependencies[] = 'artistic-creation-environment-aurora';
+				$editor_dependencies[] = self::EFFECT_SCRIPT_HANDLES['aurora-flow'];
 			}
 
 			if ( file_exists( $constellation_script_path ) ) {
-				$editor_dependencies[] = 'artistic-creation-environment-constellation';
+				$editor_dependencies[] = self::EFFECT_SCRIPT_HANDLES['particle-constellation'];
 			}
 
 			if ( file_exists( $topo_script_path ) ) {
-				$editor_dependencies[] = 'artistic-creation-environment-topo';
+				$editor_dependencies[] = self::EFFECT_SCRIPT_HANDLES['neon-topography'];
 			}
 
 			if ( file_exists( $caustics_script_path ) ) {
-				$editor_dependencies[] = 'artistic-creation-environment-caustics';
+				$editor_dependencies[] = self::EFFECT_SCRIPT_HANDLES['glass-caustics'];
 			}
 
 			if ( file_exists( $dust_script_path ) ) {
-				$editor_dependencies[] = 'artistic-creation-environment-dust';
+				$editor_dependencies[] = self::EFFECT_SCRIPT_HANDLES['magnetic-dust'];
 			}
 
 			if ( file_exists( $html2canvas_script_path ) ) {
@@ -265,17 +275,7 @@ class Artistic_Creation_Environment {
 			wp_register_script(
 				'artistic-creation-environment-frontend',
 				ARTISTIC_CREATION_ENVIRONMENT_URL . 'build/frontend.js',
-				array_filter(
-					array(
-						file_exists( $runtime_script_path )       ? 'artistic-creation-environment-runtime'       : null,
-						file_exists( $ascii_script_path )         ? 'artistic-creation-environment-ascii'         : null,
-						file_exists( $aurora_script_path )        ? 'artistic-creation-environment-aurora'        : null,
-						file_exists( $constellation_script_path ) ? 'artistic-creation-environment-constellation' : null,
-						file_exists( $topo_script_path )          ? 'artistic-creation-environment-topo'          : null,
-						file_exists( $caustics_script_path )      ? 'artistic-creation-environment-caustics'      : null,
-						file_exists( $dust_script_path )          ? 'artistic-creation-environment-dust'          : null,
-					)
-				),
+				array(),
 				(string) filemtime( $frontend_script_path ),
 				true
 			);
@@ -365,10 +365,31 @@ class Artistic_Creation_Environment {
 	public function enqueue_block_assets() {
 		// In WP 6.3+ the block editor renders blocks inside an iframe.
 		// enqueue_block_assets fires in that iframe context too, so we must
-		// NOT bail on is_admin() — doing so prevents effects from loading
-		// inside the editor canvas.  WordPress deduplicates handles, so
-		// enqueuing the same script here AND in enqueue_editor_assets is safe.
-		$this->enqueue_frontend_assets();
+		// keep editor previews fully available even though frontend pages are
+		// now filtered by render_block below.
+		if ( is_admin() ) {
+			$this->enqueue_all_runtime_assets();
+			return;
+		}
+
+		$this->enqueue_shared_style();
+	}
+
+	/**
+	 * Enqueue only the scripts required by the rendered block markup.
+	 *
+	 * @param string               $block_content Rendered block HTML.
+	 * @param array<string, mixed> $block         Parsed block data.
+	 * @return string
+	 */
+	public function enqueue_rendered_block_assets( $block_content, $block ) {
+		if ( is_admin() || '' === $block_content ) {
+			return $block_content;
+		}
+
+		$this->enqueue_runtime_handles( $this->get_rendered_block_asset_handles( $block_content, is_array( $block ) ? $block : array() ) );
+
+		return $block_content;
 	}
 
 	/**
@@ -1069,7 +1090,7 @@ class Artistic_Creation_Environment {
 	 *
 	 * @return void
 	 */
-	private function enqueue_frontend_assets() {
+	private function enqueue_all_runtime_assets() {
 		$this->enqueue_shared_style();
 
 		foreach ( array(
@@ -1092,6 +1113,142 @@ class Artistic_Creation_Environment {
 				wp_enqueue_script( $handle );
 			}
 		}
+	}
+
+	/**
+	 * Enqueue handles while keeping the Creative frontend wrapper after effect runtimes.
+	 *
+	 * @param array<int, string> $handles Script handles.
+	 * @return void
+	 */
+	private function enqueue_runtime_handles( $handles ) {
+		$handles = array_values( array_unique( array_filter( $handles ) ) );
+		if ( empty( $handles ) ) {
+			return;
+		}
+
+		$frontend_handle = 'artistic-creation-environment-frontend';
+		$needs_frontend  = in_array( $frontend_handle, $handles, true );
+
+		if ( $needs_frontend && wp_script_is( $frontend_handle, 'enqueued' ) && ! wp_script_is( $frontend_handle, 'done' ) ) {
+			wp_dequeue_script( $frontend_handle );
+		}
+
+		foreach ( $handles as $handle ) {
+			if ( $frontend_handle === $handle ) {
+				continue;
+			}
+
+			if ( wp_script_is( $handle, 'registered' ) ) {
+				wp_enqueue_script( $handle );
+			}
+		}
+
+		if ( $needs_frontend && wp_script_is( $frontend_handle, 'registered' ) ) {
+			wp_enqueue_script( $frontend_handle );
+		}
+	}
+
+	/**
+	 * Work out runtime handles from saved block markup and attributes.
+	 *
+	 * @param string               $block_content Rendered block HTML.
+	 * @param array<string, mixed> $block         Parsed block data.
+	 * @return array<int, string>
+	 */
+	private function get_rendered_block_asset_handles( $block_content, $block ) {
+		$handles    = array();
+		$block_name = isset( $block['blockName'] ) ? (string) $block['blockName'] : '';
+
+		if ( false !== strpos( $block_content, 'artistic-creative__layer' ) ) {
+			foreach ( $this->get_effect_keys_from_markup( $block_content ) as $effect ) {
+				if ( isset( self::EFFECT_SCRIPT_HANDLES[ $effect ] ) ) {
+					$handles[] = self::EFFECT_SCRIPT_HANDLES[ $effect ];
+				}
+			}
+
+			$handles[] = 'artistic-creation-environment-frontend';
+		}
+
+		if ( false !== strpos( $block_content, 'data-ace-child-interaction-mode=' ) ) {
+			$handles[] = 'artistic-creation-environment-frontend';
+		}
+
+		if (
+			false !== strpos( $block_content, 'ace-artistic-btn--' ) &&
+			(
+				false !== strpos( $block_content, 'ace-artistic-btn--aurora' ) ||
+				false !== strpos( $block_content, 'ace-artistic-btn--neon' ) ||
+				false !== strpos( $block_content, 'ace-artistic-btn--prism' ) ||
+				false !== strpos( $block_content, 'ace-artistic-btn--plasma' ) ||
+				false !== strpos( $block_content, 'ace-artistic-btn--inferno' )
+			)
+		) {
+			$handles[] = 'artistic-creation-environment-btn-effects';
+		}
+
+		if ( false !== strpos( $block_content, 'ace-scramble-text' ) ) {
+			$handles[] = 'artistic-creation-environment-scramble';
+		}
+
+		if (
+			false !== strpos( $block_content, 'ace-magic-text' ) ||
+			false !== strpos( $block_content, 'ace-aurora-text' ) ||
+			false !== strpos( $block_content, 'ace-neon-text' ) ||
+			false !== strpos( $block_content, 'ace-prism-text' ) ||
+			false !== strpos( $block_content, 'ace-plasma-text' ) ||
+			false !== strpos( $block_content, 'ace-inferno-text' ) ||
+			false !== strpos( $block_content, 'ace-glass-text' ) ||
+			false !== strpos( $block_content, 'ace-artistic-btn--sparkles' )
+		) {
+			$handles[] = 'artistic-creation-environment-magic';
+		}
+
+		if (
+			false !== strpos( $block_content, 'ace-artistic-btn--liquid-glass' ) ||
+			false !== strpos( $block_content, 'data-ace-liquid-glass="true"' ) ||
+			false !== strpos( $block_content, "data-ace-liquid-glass='true'" ) ||
+			false !== strpos( $block_content, 'data-ace-sticky-glass="true"' ) ||
+			false !== strpos( $block_content, "data-ace-sticky-glass='true'" ) ||
+			( false !== strpos( $block_content, 'liquidGL' ) && false !== strpos( $block_content, 'data-ace-lg-' ) )
+		) {
+			$handles[] = 'artistic-creation-environment-html2canvas';
+			$handles[] = 'artistic-creation-environment-liquidgl';
+			$handles[] = 'artistic-creation-environment-liquid-glass';
+		}
+
+		if (
+			'core/button' === $block_name &&
+			false !== strpos( $block_content, 'ace-artistic-btn--liquid-glass' )
+		) {
+			$handles[] = 'artistic-creation-environment-magic';
+		}
+
+		return array_values( array_unique( $handles ) );
+	}
+
+	/**
+	 * Extract effect keys from rendered Creative block markup.
+	 *
+	 * @param string $block_content Rendered block HTML.
+	 * @return array<int, string>
+	 */
+	private function get_effect_keys_from_markup( $block_content ) {
+		$effects = array();
+
+		if ( preg_match_all( '/data-artistic-creative-effect=(["\'])([^"\']+)\\1/', $block_content, $matches ) ) {
+			foreach ( $matches[2] as $effect ) {
+				$effects[] = sanitize_key( $effect );
+			}
+		}
+
+		if ( preg_match_all( '/"effect"\s*:\s*"([^"]+)"/', html_entity_decode( $block_content, ENT_QUOTES, get_bloginfo( 'charset' ) ), $matches ) ) {
+			foreach ( $matches[1] as $effect ) {
+				$effects[] = sanitize_key( $effect );
+			}
+		}
+
+		return array_values( array_unique( array_filter( $effects ) ) );
 	}
 
 	/**
