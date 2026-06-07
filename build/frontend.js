@@ -1,6 +1,27 @@
 (function () {
 	'use strict';
 
+	var RAW_CONFIG = window.ACE_VIEW_TRANSITIONS || {};
+	var CONTENT_SELECTORS = String(RAW_CONFIG.contentSelector || '#page, .wp-site-blocks, main, body')
+		.split(',')
+		.map(function (selector) {
+			return selector.trim();
+		})
+		.filter(Boolean);
+	var SITE_URL = RAW_CONFIG.siteUrl || window.location.origin + '/';
+	var EXCLUDE_LIST = Array.isArray(RAW_CONFIG.excludeList) ? RAW_CONFIG.excludeList : [];
+	var DEBUG_ENABLED = !!RAW_CONFIG.debug;
+
+	function debugLog() {
+		if (!DEBUG_ENABLED || !window.console || typeof window.console.debug !== 'function') {
+			return;
+		}
+
+		var args = Array.prototype.slice.call(arguments);
+		args.unshift('[ACE]');
+		window.console.debug.apply(window.console, args);
+	}
+
 	function parseConfig(node) {
 		if (!node) {
 			return {};
@@ -37,34 +58,13 @@
 	}
 
 	function getRuntime(effect) {
-		if (effect === 'ascii-world') {
-			return window.ArtisticCreationEnvironmentAscii;
-		}
-
-		if (effect === 'liquid-splash') {
-			return window.ArtisticCreationEnvironmentFluid;
-		}
-
-		if (effect === 'aurora-flow') {
-			return window.ArtisticCreationEnvironmentAurora;
-		}
-
-		if (effect === 'particle-constellation') {
-			return window.ArtisticCreationEnvironmentConstellation;
-		}
-
-		if (effect === 'neon-topography') {
-			return window.ArtisticCreationEnvironmentTopo;
-		}
-
-		if (effect === 'glass-caustics') {
-			return window.ArtisticCreationEnvironmentCaustics;
-		}
-
-		if (effect === 'magnetic-dust') {
-			return window.ArtisticCreationEnvironmentDust;
-		}
-
+		if (effect === 'ascii-world') return window.ArtisticCreationEnvironmentAscii;
+		if (effect === 'liquid-splash') return window.ArtisticCreationEnvironmentFluid;
+		if (effect === 'aurora-flow') return window.ArtisticCreationEnvironmentAurora;
+		if (effect === 'particle-constellation') return window.ArtisticCreationEnvironmentConstellation;
+		if (effect === 'neon-topography') return window.ArtisticCreationEnvironmentTopo;
+		if (effect === 'glass-caustics') return window.ArtisticCreationEnvironmentCaustics;
+		if (effect === 'magnetic-dust') return window.ArtisticCreationEnvironmentDust;
 		return null;
 	}
 
@@ -83,46 +83,30 @@
 	}
 
 	function isLeafInteractiveElement(node, block) {
-		if (
-			!node ||
-			node.nodeType !== 1 ||
-			node.closest('.wp-block-artistic-creation-environment-creative') !== block
-		) {
+		if (!node || node.nodeType !== 1 || node.closest('.wp-block-artistic-creation-environment-creative') !== block) {
 			return false;
 		}
 
-		if (
-			node.matches(
-				'.artistic-creative__inner-container, .artistic-creative__layer, .artistic-creative__overlay'
-			)
-		) {
+		if (node.matches('.artistic-creative__inner-container, .artistic-creative__layer, .artistic-creative__overlay')) {
 			return false;
 		}
 
-		if (
-			node.matches(
-				'h1, h2, h3, h4, h5, h6, p, figure, blockquote, ul, ol, pre, table, .wp-block-button, .wp-block-buttons, .wp-block-image, .wp-block-heading, .wp-block-quote, .wp-block-pullquote, .wp-block-list, .wp-block-table, .wp-block-preformatted, .wp-block-code'
-			)
-		) {
+		if (node.matches('h1, h2, h3, h4, h5, h6, p, figure, blockquote, ul, ol, pre, table, .wp-block-button, .wp-block-buttons, .wp-block-image, .wp-block-heading, .wp-block-quote, .wp-block-pullquote, .wp-block-list, .wp-block-table, .wp-block-preformatted, .wp-block-code')) {
 			return true;
 		}
 
-		if ( ! hasWordPressBlockClass( node ) ) {
+		if (!hasWordPressBlockClass(node)) {
 			return false;
 		}
 
-		return !node.matches(
-			'.wp-block-columns, .wp-block-column, .wp-block-group, .wp-block-cover, .wp-block-media-text, .wp-block-artistic-creation-environment-creative'
-		);
+		return !node.matches('.wp-block-columns, .wp-block-column, .wp-block-group, .wp-block-cover, .wp-block-media-text, .wp-block-artistic-creation-environment-creative');
 	}
 
 	function getInteractiveTargets(block, targetsContainer) {
-		var candidates = Array.prototype.filter.call(
-			targetsContainer.querySelectorAll('*'),
-			function (node) {
-				return isLeafInteractiveElement(node, block);
-			}
-		);
+		var candidates = Array.prototype.filter.call(targetsContainer.querySelectorAll('*'), function (node) {
+			return isLeafInteractiveElement(node, block);
+		});
+
 		var leafTargets = candidates.filter(function (node) {
 			return !candidates.some(function (otherNode) {
 				return otherNode !== node && node.contains(otherNode);
@@ -131,27 +115,17 @@
 
 		return leafTargets.length
 			? leafTargets
-			: Array.prototype.filter.call(
-					targetsContainer.children || [],
-					function (node) {
-						return node && node.nodeType === 1;
-					}
-			  );
+			: Array.prototype.filter.call(targetsContainer.children || [], function (node) {
+					return node && node.nodeType === 1;
+			  });
 	}
 
 	function mountChildInteractivity(block) {
-		if (
-			!block ||
-			block.dataset.artisticChildInteractiveMounted === '1' ||
-			!block.getAttribute('data-ace-child-interaction-mode')
-		) {
+		if (!block || block.dataset.artisticChildInteractiveMounted === '1' || !block.getAttribute('data-ace-child-interaction-mode')) {
 			return;
 		}
 
-		if (
-			window.matchMedia &&
-			window.matchMedia('(prefers-reduced-motion: reduce)').matches
-		) {
+		if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
 			return;
 		}
 
@@ -163,30 +137,10 @@
 		}
 
 		var computedStyle = window.getComputedStyle(block);
-		var intensity = Math.max(
-			0,
-			parseFloat(
-				computedStyle.getPropertyValue('--ace-child-interaction-intensity')
-			) || 0
-		);
-		var radius = Math.max(
-			1,
-			parseFloat(
-				computedStyle.getPropertyValue('--ace-child-interaction-radius')
-			) || 0
-		);
-		var depth = Math.max(
-			0,
-			parseFloat(
-				computedStyle.getPropertyValue('--ace-child-interaction-depth')
-			) || 0
-		);
-		var idle = Math.max(
-			0,
-			parseFloat(
-				computedStyle.getPropertyValue('--ace-child-interaction-idle')
-			) || 0
-		);
+		var intensity = Math.max(0, parseFloat(computedStyle.getPropertyValue('--ace-child-interaction-intensity')) || 0);
+		var radius = Math.max(1, parseFloat(computedStyle.getPropertyValue('--ace-child-interaction-radius')) || 0);
+		var depth = Math.max(0, parseFloat(computedStyle.getPropertyValue('--ace-child-interaction-depth')) || 0);
+		var idle = Math.max(0, parseFloat(computedStyle.getPropertyValue('--ace-child-interaction-idle')) || 0);
 
 		if (intensity <= 0 || depth <= 0) {
 			return;
@@ -203,15 +157,8 @@
 
 		function getState(node, index) {
 			if (!nodeStates.has(node)) {
-				nodeStates.set(node, {
-					x: 0,
-					y: 0,
-					scale: 1,
-					rotate: 0,
-					direction: index % 2 === 0 ? 1 : -1,
-				});
+				nodeStates.set(node, { x: 0, y: 0, scale: 1, rotate: 0, direction: index % 2 === 0 ? 1 : -1 });
 			}
-
 			return nodeStates.get(node);
 		}
 
@@ -226,22 +173,10 @@
 				var centerX = rect.left + rect.width * 0.5;
 				var centerY = rect.top + rect.height * 0.5;
 				var idleAmount = idle * depth;
-				var targetX =
-					idleAmount > 0
-						? Math.sin(time + index * 0.73) * idleAmount * 0.22
-						: 0;
-				var targetY =
-					idleAmount > 0
-						? Math.cos(time * 1.17 + index * 0.61) * idleAmount * 0.18
-						: 0;
-				var targetScale =
-					idleAmount > 0 && mode === 'pulse'
-						? 1 + Math.sin(time * 1.35 + index * 0.8) * idle * 0.035
-						: 1;
-				var targetRotate =
-					idleAmount > 0 && (mode === 'orbit' || mode === 'drift')
-						? Math.sin(time * 0.82 + index * 0.55) * idle * 3.5
-						: 0;
+				var targetX = idleAmount > 0 ? Math.sin(time + index * 0.73) * idleAmount * 0.22 : 0;
+				var targetY = idleAmount > 0 ? Math.cos(time * 1.17 + index * 0.61) * idleAmount * 0.18 : 0;
+				var targetScale = idleAmount > 0 && mode === 'pulse' ? 1 + Math.sin(time * 1.35 + index * 0.8) * idle * 0.035 : 1;
+				var targetRotate = idleAmount > 0 && (mode === 'orbit' || mode === 'drift') ? Math.sin(time * 0.82 + index * 0.55) * idle * 3.5 : 0;
 
 				if (pointer.active) {
 					var dx = centerX - pointer.x;
@@ -266,14 +201,8 @@
 						targetScale += easedForce * 0.035;
 						targetRotate += state.direction * easedForce * 10;
 					} else if (mode === 'drift') {
-						targetX +=
-							(normalX * 0.35 - normalY * 0.4 * state.direction) *
-							depth *
-							easedForce;
-						targetY +=
-							(normalY * 0.28 + normalX * 0.2 * state.direction) *
-							depth *
-							easedForce;
+						targetX += (normalX * 0.35 - normalY * 0.4 * state.direction) * depth * easedForce;
+						targetY += (normalY * 0.28 + normalX * 0.2 * state.direction) * depth * easedForce;
 						targetRotate += normalX * easedForce * 8;
 						targetScale += easedForce * 0.02;
 					} else if (mode === 'pulse') {
@@ -333,41 +262,285 @@
 		};
 	}
 
-	function initLayers() {
-		Array.prototype.forEach.call(
-			document.querySelectorAll('.artistic-creative__layer[data-artistic-config]'),
-			function (layer) {
-				if (layer.dataset.artisticFluidMounted === '1') {
-					return;
-				}
+	function initLayers(root) {
+		var scope = root && root.querySelectorAll ? root : document;
 
-				var config = parseConfig(layer);
-				var runtime = getRuntime(config.effect);
-
-				if (typeof runtime !== 'function') {
-					return;
-				}
-
-				ensureMarkup(layer);
-				runtime(layer, config, {
-					interactionSurface: layer.parentElement,
-					auraSource: layer.parentElement,
-				});
-				layer.dataset.artisticFluidMounted = '1';
+		Array.prototype.forEach.call(scope.querySelectorAll('.artistic-creative__layer[data-artistic-config]'), function (layer) {
+			if (layer.dataset.artisticFluidMounted === '1') {
+				return;
 			}
-		);
 
-		Array.prototype.forEach.call(
-			document.querySelectorAll(
-				'.wp-block-artistic-creation-environment-creative[data-ace-child-interaction-mode]'
-			),
-			mountChildInteractivity
-		);
+			var config = parseConfig(layer);
+			var runtime = getRuntime(config.effect);
+
+			if (typeof runtime !== 'function') {
+				return;
+			}
+
+			ensureMarkup(layer);
+			runtime(layer, config, {
+				interactionSurface: layer.parentElement,
+				auraSource: layer.parentElement,
+			});
+			layer.dataset.artisticFluidMounted = '1';
+		});
+
+		Array.prototype.forEach.call(scope.querySelectorAll('.wp-block-artistic-creation-environment-creative[data-ace-child-interaction-mode]'), mountChildInteractivity);
+	}
+
+	function setDocumentHints(doc) {
+		document.documentElement.lang = doc.documentElement.getAttribute('lang') || document.documentElement.lang;
+		if (doc.documentElement.dir) {
+			document.documentElement.dir = doc.documentElement.dir;
+		}
+	}
+
+	function applyCssVariables(doc) {
+		var newStyle = doc.querySelector('style[data-ace-transition-vars], style#ace-transition-vars');
+		var existing = document.head.querySelector('style[data-ace-transition-vars], style#ace-transition-vars');
+
+		if (newStyle) {
+			var clone = newStyle.cloneNode(true);
+			clone.setAttribute('data-ace-transition-vars', '');
+			if (existing && existing.parentNode) {
+				existing.parentNode.replaceChild(clone, existing);
+			} else {
+				document.head.appendChild(clone);
+			}
+		}
+	}
+
+	function enableDocumentTransition() {
+		document.documentElement.classList.remove('ace-view-transition-fade-out');
+		document.documentElement.classList.remove('ace-view-transition-fade-in');
+	}
+
+	function applySharedElementNames(doc) {
+		Array.prototype.forEach.call(doc.querySelectorAll('[data-view-transition-name]'), function (node) {
+			var name = node.getAttribute('data-view-transition-name');
+			if (name) {
+				node.style.viewTransitionName = name;
+			}
+		});
+	}
+
+	function stripHash(url) {
+		return url.origin + url.pathname + url.search;
+	}
+
+	function isEligibleNavigationLink(anchor) {
+		if (!anchor || anchor.tagName !== 'A') {
+			return false;
+		}
+
+		if (anchor.target === '_blank' || anchor.hasAttribute('download')) {
+			debugLog('skip: target or download link', anchor.href);
+			return false;
+		}
+
+		if (anchor.closest('[aria-hidden="true"], [inert]')) {
+			debugLog('skip: hidden/inert link', anchor.href);
+			return false;
+		}
+
+		if (anchor.classList && anchor.classList.contains('ab-item')) {
+			debugLog('skip: admin bar link', anchor.href);
+			return false;
+		}
+
+		var href = anchor.getAttribute('href');
+		if (!href || href.charAt(0) === '#') {
+			return false;
+		}
+
+		var url;
+		try {
+			url = new URL(href, window.location.href);
+		} catch (error) {
+			return false;
+		}
+
+		if (url.origin !== window.location.origin) {
+			debugLog('skip: external URL', url.href);
+			return false;
+		}
+
+		if (stripHash(url) === stripHash(window.location)) {
+			debugLog('skip: hash-only link', url.href);
+			return false;
+		}
+
+		if (/(?:^|\/)(wp-admin|wp-login\.php|wp-json)(?:\/|$)/.test(url.pathname) || /[?&](preview|customize)=/i.test(url.search + url.hash)) {
+			debugLog('skip: wp admin/login/json/preview/customizer', url.href);
+			return false;
+		}
+
+		if (Array.isArray(EXCLUDE_LIST) && EXCLUDE_LIST.length) {
+			for (var i = 0; i < EXCLUDE_LIST.length; i += 1) {
+				if (!EXCLUDE_LIST[i]) {
+					continue;
+				}
+				try {
+					if (anchor.matches(EXCLUDE_LIST[i]) || anchor.closest(EXCLUDE_LIST[i])) {
+						debugLog('skip: excluded selector', EXCLUDE_LIST[i], url.href);
+						return false;
+					}
+				} catch (error) {}
+			}
+		}
+
+		return true;
+	}
+
+	function shouldUseSameDocumentMode() {
+		return String(RAW_CONFIG.transitionMode || 'cross-document') === 'same-document';
+	}
+
+	function hasReducedMotion() {
+		return !!(RAW_CONFIG.respectReducedMotion && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+	}
+
+	function loadPage(url, options) {
+		options = options || {};
+		return window.fetch(url, {
+			credentials: 'same-origin',
+			headers: {
+				'X-Requested-With': 'XMLHttpRequest',
+				'X-ACE-View-Transition': '1',
+			},
+			redirect: 'follow',
+		}).then(function (response) {
+			if (!response.ok) {
+				throw new Error('Request failed: ' + response.status);
+			}
+			return response.text();
+		}).then(function (html) {
+			var parser = new DOMParser();
+			var nextDoc = parser.parseFromString(html, 'text/html');
+			var nextTitle = nextDoc.title || '';
+			var replacement = null;
+
+			for (var i = 0; i < CONTENT_SELECTORS.length; i += 1) {
+				replacement = nextDoc.querySelector(CONTENT_SELECTORS[i]);
+				if (replacement) {
+					break;
+				}
+			}
+
+			if (!replacement) {
+				replacement = nextDoc.body;
+			}
+
+			if (!replacement) {
+				throw new Error('No replacement root found');
+			}
+
+			function swapDocument() {
+				document.title = nextTitle;
+
+				var nextBody = nextDoc.body.cloneNode(true);
+				document.body.replaceWith(nextBody);
+				// Inline scripts are not re-executed here; this is the first stable pass for page-shell swaps.
+				setDocumentHints(nextDoc);
+				applyCssVariables(nextDoc);
+				applySharedElementNames(document);
+				initLayers(document.body);
+				enableDocumentTransition();
+			}
+
+			if (document.startViewTransition) {
+				return document.startViewTransition(function () {
+					swapDocument();
+				}).finished.then(function () {
+					return {
+						url: url.href,
+						title: nextTitle,
+						document: nextDoc,
+					};
+				});
+			}
+
+			document.documentElement.classList.add('ace-view-transition-fade-out');
+			swapDocument();
+			document.documentElement.classList.add('ace-view-transition-fade-in');
+
+			return Promise.resolve({
+				url: url.href,
+				title: nextTitle,
+				document: nextDoc,
+			});
+		});
+	}
+
+	function navigate(url, replaceState) {
+		return loadPage(url).then(function (result) {
+			if (!replaceState) {
+				window.history.pushState({ aceViewTransition: true, url: result.url }, '', result.url);
+			} else {
+				window.history.replaceState({ aceViewTransition: true, url: result.url }, '', result.url);
+			}
+
+			document.dispatchEvent(new CustomEvent('ace:view-transition:navigated', { detail: { url: result.url } }));
+			debugLog('navigated', result.url);
+		}).catch(function (error) {
+			debugLog('navigation failed, falling back', error && error.message ? error.message : error);
+			window.location.href = url.href;
+		});
+	}
+
+	function onDocumentClick(event) {
+		if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+			return;
+		}
+
+		var anchor = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+		if (!anchor || !isEligibleNavigationLink(anchor) || !shouldUseSameDocumentMode() || hasReducedMotion()) {
+			if (!shouldUseSameDocumentMode()) {
+				debugLog('skip: same-document mode disabled');
+			} else if (hasReducedMotion()) {
+				debugLog('skip: reduced motion');
+			}
+			return;
+		}
+
+		event.preventDefault();
+		debugLog('intercepting navigation', anchor.href);
+		navigate(new URL(anchor.getAttribute('href'), window.location.href), false);
+	}
+
+	function onPopState(event) {
+		if (!shouldUseSameDocumentMode()) {
+			return;
+		}
+
+		debugLog('popstate', window.location.href);
+		loadPage(new URL(window.location.href), { popstate: true }).catch(function () {
+			window.location.reload();
+		});
+	}
+
+	function enableNavigationController() {
+		if (!('startViewTransition' in document)) {
+			debugLog('unsupported browser: document.startViewTransition missing');
+			return;
+		}
+
+		if (!shouldUseSameDocumentMode()) {
+			return;
+		}
+
+		document.addEventListener('click', onDocumentClick, true);
+		window.addEventListener('popstate', onPopState);
+		debugLog('same-document navigation controller enabled');
 	}
 
 	if (document.readyState === 'loading') {
-		document.addEventListener('DOMContentLoaded', initLayers);
+		document.addEventListener('DOMContentLoaded', function () {
+			initLayers(document);
+			enableNavigationController();
+		});
 	} else {
-		initLayers();
+		initLayers(document);
+		enableNavigationController();
 	}
 })();

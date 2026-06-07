@@ -279,6 +279,21 @@ class Artistic_Creation_Environment {
 				(string) filemtime( $frontend_script_path ),
 				true
 			);
+
+			$frontend_config = array(
+				'siteUrl'             => home_url( '/' ),
+				'contentSelector'     => '#page, .wp-site-blocks, main, body',
+				'transitionMode'      => $this->get_setting( 'transition_mode' ) ? (string) $this->get_setting( 'transition_mode' ) : 'cross-document',
+				'respectReducedMotion'=> (bool) $this->get_setting( 'respect_reduced_motion' ),
+				'debug'               => (bool) $this->get_setting( 'debug' ),
+				'excludeList'         => is_array( $this->get_setting( 'exclude_list' ) ) ? array_values( array_filter( array_map( 'strval', (array) $this->get_setting( 'exclude_list' ) ) ) ) : array(),
+			);
+
+			wp_add_inline_script(
+				'artistic-creation-environment-frontend',
+				'window.ACE_VIEW_TRANSITIONS = ' . wp_json_encode( $frontend_config ) . ';',
+				'before'
+			);
 		}
 
 		if ( file_exists( $button_effects_script_path ) ) {
